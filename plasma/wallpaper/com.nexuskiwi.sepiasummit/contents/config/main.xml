@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+  <group name="General">
+    <entry name="Background" type="String"><default></default></entry>
+    <entry name="Foreground" type="String"><default></default></entry>
+    <entry name="BarCount" type="Int"><default>96</default></entry>
+    <entry name="Baseline" type="Int"><default>80</default></entry>
+    <entry name="MaxHeight" type="Int"><default>42</default></entry>
+    <entry name="BarOpacity" type="Int"><default>50</default></entry>
+    <entry name="BarColor" type="String"><default>#f5e6c8</default></entry>
+    <entry name="Glow" type="Bool"><default>true</default></entry>
+    <entry name="Port" type="Int"><default>37421</default></entry>
+  </group>
+</kcfg>

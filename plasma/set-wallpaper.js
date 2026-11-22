@@ -4,6 +4,7 @@
 //   1 ultrawide -> the ultrawide image
 //   otherwise   -> the single-screen image
 var dir = "@WPDIR@";
+var live = "@LIVE@" === "1";   // use the live (visualiser) wallpaper plugin
 var ds = desktops();
 var screensSeen = {};
 var list = [];
@@ -18,10 +19,18 @@ xs.sort(function (a, b) { return a - b; });
 var n = xs.length;
 
 function set(d, file) {
-    d.wallpaperPlugin = "org.kde.image";
-    d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
-    d.writeConfig("Image", "file://" + dir + "/" + file);
-    d.writeConfig("FillMode", 2); // scaled & cropped
+    var front = file.replace(".png", "_front.png");
+    if (live) {
+        d.wallpaperPlugin = "com.nexuskiwi.sepiasummit";
+        d.currentConfigGroup = ["Wallpaper", "com.nexuskiwi.sepiasummit", "General"];
+        d.writeConfig("Background", "file://" + dir + "/" + file);
+        d.writeConfig("Foreground", "file://" + dir + "/" + front);
+    } else {
+        d.wallpaperPlugin = "org.kde.image";
+        d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
+        d.writeConfig("Image", "file://" + dir + "/" + file);
+        d.writeConfig("FillMode", 2); // scaled & cropped
+    }
 }
 
 for (var j = 0; j < list.length; j++) {

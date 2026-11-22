@@ -2,10 +2,12 @@
 # Sepia desktop kit installer — Bazzite / Fedora Atomic, KDE Plasma 6.
 # Safe to re-run. Override detection with env vars, e.g.:
 #   HEAD=0 IFACE=enp5s0 DISK=nvme0n1 ./install.sh
+#   LIVE=0 ./install.sh      # plain static wallpaper, no visualiser behind the ridges
 set -euo pipefail
 KIT="$(cd "$(dirname "$0")" && pwd)"
 CONF="$HOME/.config/conky/sepia"
 WPDIR="$HOME/Pictures/Wallpapers/sepia-mountains"
+LIVE="${LIVE:-1}"
 c() { printf '\033[38;2;196;160;116m%s\033[0m\n' "$*"; }
 
 c "── Sepia desktop kit ──"
@@ -83,21 +85,39 @@ mkdir -p "$HOME/.config/cava"
 [ -f "$HOME/.config/cava/config" ] && cp "$HOME/.config/cava/config" "$HOME/.config/cava/config.bak.$(date +%s)"
 cp "$KIT/cava/config" "$HOME/.config/cava/config"
 
-# 5. wallpaper --------------------------------------------------------------
+# 5. live wallpaper plugin + audio server -----------------------------------
+if [ "$LIVE" = "1" ]; then
+  PLUG="$HOME/.local/share/plasma/wallpapers/com.nexuskiwi.sepiasummit"
+  rm -rf "$PLUG"; mkdir -p "$(dirname "$PLUG")"
+  cp -r "$KIT/plasma/wallpaper/com.nexuskiwi.sepiasummit" "$PLUG"
+  mkdir -p "$HOME/.local/bin" "$HOME/.config/systemd/user"
+  install -m 755 "$KIT/plasma/sepia-cava-server.py" "$HOME/.local/bin/sepia-cava-server"
+  cp "$KIT/plasma/sepia-cava.service" "$HOME/.config/systemd/user/"
+  if command -v systemctl >/dev/null && command -v cava >/dev/null; then
+    systemctl --user daemon-reload
+    systemctl --user enable --now sepia-cava.service && systemctl --user restart sepia-cava.service
+    c "Audio server running (sepia-cava.service)."
+  else
+    c "cava not installed yet — the visualiser will stay still until it is."
+  fi
+fi
+
+# 6. wallpaper --------------------------------------------------------------
 mkdir -p "$WPDIR"
 cp "$KIT"/wallpapers/*.png "$WPDIR/"
 QDBUS="$(command -v qdbus6 || command -v qdbus || command -v qdbus-qt6 || true)"
 if [ -n "$QDBUS" ]; then
-  js="$(sed "s|@WPDIR@|$WPDIR|" "$KIT/plasma/set-wallpaper.js")"
+  js="$(sed -e "s|@WPDIR@|$WPDIR|" -e "s|@LIVE@|$LIVE|" "$KIT/plasma/set-wallpaper.js")"
   "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$js" || c "Couldn't set wallpaper automatically — pick it in Desktop > Configure."
 else
   c "qdbus not found — set the wallpaper by hand from $WPDIR"
 fi
 
-# 6. start it ---------------------------------------------------------------
+# 7. start it ---------------------------------------------------------------
 if command -v conky >/dev/null; then
   pkill -f "conky -c $CONF/sepia.conf" 2>/dev/null || true
   (conky -c "$CONF/sepia.conf" >/dev/null 2>&1 &)
 fi
 
-c "All done. Next: add the audio visualiser widget (see README step 3)."
+c "All done. If the wallpaper shows black, run: systemctl --user restart plasma-plasmashell"
+if [ "$LIVE" = "1" ]; then c "Play some music — the bars rise from behind the mountains."; fi

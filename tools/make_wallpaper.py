@@ -74,7 +74,9 @@ def value_noise_2d(rng, w, h, cell):
     return np.asarray(img, dtype=np.float32)[:h, :w] / 255.0
 
 
-def render(W, H, seed):
+def render(W, H, seed, split=3):
+    """Returns (image, front_mask, valley). front_mask = coverage of layers >= split;
+    valley = lowest point (0..1 from top) of the split layer's ridge."""
     rng = np.random.default_rng(seed)
     noise = Noise1D(rng)
     ys = (np.arange(H) / H)[:, None]                     # 0 top .. 1 bottom
@@ -102,6 +104,8 @@ def render(W, H, seed):
     sky += cl
 
     img = sky
+    front = np.zeros((H, W))
+    valley = 1.0
 
     # --- mountain layers (back -> front) --------------------------------
     # (base height, amplitude, freq, ridged, tone, haze strength, detail)
@@ -158,6 +162,10 @@ def render(W, H, seed):
 
         edge = np.clip(dy * H + 0.5, 0, 1)                       # anti-aliased edge
         img = img * (1 - edge) + layer * edge
+        if li >= split:
+            front = front + edge * (1 - front)
+        if li == split:
+            valley = float(ridge.max())
 
     # --- finishing ------------------------------------------------------
     # god-ray-ish glow from sun over everything
@@ -172,7 +180,8 @@ def render(W, H, seed):
 
     rgb = gradient_map(img)
     out = Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8), "RGB")
-    return out.filter(ImageFilter.UnsharpMask(radius=1.2, percent=40, threshold=2))
+    out = out.filter(ImageFilter.UnsharpMask(radius=1.2, percent=40, threshold=2))
+    return out, front, valley
 
 
 def main():
@@ -180,19 +189,25 @@ def main():
     ap.add_argument("outdir")
     ap.add_argument("--seed", type=int, default=1942)
     ap.add_argument("--only", default=None)
+    ap.add_argument("--split", type=int, default=3, help="first mountain layer drawn in front of the visualiser (0=far .. 5=near)")
     a = ap.parse_args()
     os.makedirs(a.outdir, exist_ok=True)
     for name, (w, h) in SIZES.items():
         if a.only and a.only not in name:
             continue
-        im = render(w, h, a.seed)
+        im, front, valley = render(w, h, a.seed, a.split)
         p = os.path.join(a.outdir, f"sepia-mountains_{name}.png")
         im.save(p, optimize=True)
-        print("wrote", p)
+        # cut-out of the nearer ranges, for the live wallpaper's top layer
+        fg = im.convert("RGBA")
+        fg.putalpha(Image.fromarray((np.clip(front, 0, 1) * 255).astype(np.uint8)))
+        fp = p.replace(".png", "_front.png")
+        fg.save(fp, optimize=True)
+        print("wrote", p, "+ front  (valley line %.3f)" % valley)
         if name.startswith("dual"):
-            im.crop((0, 0, w // 2, h)).save(p.replace(".png", "_LEFT.png"), optimize=True)
-            im.crop((w // 2, 0, w, h)).save(p.replace(".png", "_RIGHT.png"), optimize=True)
-
+            for side, box in (("LEFT", (0, 0, w // 2, h)), ("RIGHT", (w // 2, 0, w, h))):
+                im.crop(box).save(p.replace(".png", f"_{side}.png"), optimize=True)
+                fg.crop(box).save(p.replace(".png", f"_{side}_front.png"), optimize=True)
 
 if __name__ == "__main__":
     main()

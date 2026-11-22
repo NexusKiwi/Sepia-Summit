@@ -2,7 +2,9 @@
 
 **A Rainmeter-style sepia desktop for Linux: KDE Plasma 6, Bazzite and Fedora Atomic.**
 
-![Sepia Summit on dual monitors](docs/preview-dual.jpg)
+![Sepia Summit on dual monitors, with the visualiser rising behind the ridges](docs/preview-live.jpg)
+
+<sub>Mock-up: the visualiser rises from the valley behind the nearer ridges.</sub>
 
 <p align="center"><img src="docs/panel-closeup.png" width="360" alt="Conky stats panel close-up (mock-up)"></p>
 <p align="center"><sub>Panel preview is a mock-up; real numbers come from your hardware.</sub></p>
@@ -11,19 +13,23 @@ What's included:
 
 - **Wallpaper**: a sepia mountain range generated for this kit. It comes in sizes for dual 1440p, dual 1080p, ultrawide (3440 and 2560) and single screens. All sizes show the same mountains, so the scene carries across both monitors. The tall peaks sit on the left, with calmer sky on the right where the widgets go.
 - **Conky stats panel** (right edge): clock, CPU load/temp/clock speed with 16 per-thread bars, RTX 3070 load/temp/VRAM/power/fan, RAM/swap, drive space, NVMe temps, disk read/write, network and top processes.
-- **Audio visualiser**: Kurve, a native Plasma widget driven by CAVA, in matching sepia colours.
+- **Live wallpaper with the visualiser behind the mountains**: a Plasma 6 wallpaper plugin draws the wallpaper, then audio bars across the full width of each screen, then a cut-out of the nearer ridges on top. The bars look like they're rising out of the valley behind the mountains. When nothing is playing it's just the normal wallpaper.
 - **Left side**: a vertical app panel for your programs.
 
-Conky and Kurve draw natively, so they use far less than Rainmeter did. Expect well under 1% CPU.
+Conky and the live wallpaper draw natively, so they use far less than Rainmeter did. Expect well under 1% CPU.
 
 ```
 install.sh                 one-shot installer (safe to re-run)
 conky/sepia.conf           the stats panel
 conky/scripts/temps.sh     CPU + NVMe temps (finds sensors by name)
 conky/scripts/gpu.sh       NVIDIA stats (cached nvidia-smi)
-cava/config                sepia colours for CAVA
-plasma/set-wallpaper.js    picks the right image for each monitor
-wallpapers/                all the PNGs (dual images also come pre-split _LEFT/_RIGHT)
+cava/config                sepia colours for terminal CAVA
+plasma/wallpaper/          the live wallpaper plugin (com.nexuskiwi.sepiasummit)
+plasma/sepia-cava-server.py  runs CAVA and serves audio levels on 127.0.0.1:37421
+plasma/sepia-cava.service  user service that keeps the server running
+plasma/set-wallpaper.js    picks the right images for each monitor
+wallpapers/                all the PNGs: dual images come pre-split _LEFT/_RIGHT,
+                           and every image has a _front.png ridge cut-out
 tools/make_wallpaper.py    the generator, if you want different mountains
 ```
 
@@ -46,12 +52,14 @@ The first run notices that `conky` and `cava` are missing and offers to layer th
 
 - detects your network adapter, main drive, any extra drives mounted under `/run/media` or `/var/mnt` (game drives etc.), and how many monitors you have
 - installs the conky panel and adds it to autostart
+- installs the live wallpaper plugin and starts the audio service (`sepia-cava.service`)
 - copies the wallpapers to `~/Pictures/Wallpapers/sepia-mountains` and sets them **per monitor**. With two screens, the left screen gets the left half and the right screen gets the right half. With an ultrawide, it gets the ultrawide image.
 
 If it guesses something wrong, you can override it:
 ```bash
 HEAD=0 ./install.sh            # put conky on the other monitor
 IFACE=enp5s0 DISK=nvme1n1 ./install.sh
+LIVE=0 ./install.sh            # plain static wallpaper, no visualiser
 ```
 
 ## 2. The left side: your apps
@@ -63,26 +71,29 @@ Plasma does this natively, with no extra installs:
 3. Add widgets to it: **Application Launcher** at the top, **Icons-only Task Manager** (pin your apps), a **Spacer**, then **System Tray** and **Digital Clock** at the bottom. Conky already shows the big clock, so you can drop the panel clock if you like.
 4. If you have two monitors, put the panel only on the **left** monitor. That keeps the right one clean for the widgets.
 
-## 3. The audio visualiser (Kurve)
+## 3. The visualiser behind the mountains
 
-1. Right-click the desktop → **Enter Edit Mode → Add Widgets → Get New Widgets → Download New Plasma Widgets**.
-2. Search **Kurve**. It may show up as **Audio Visualizer** by luisbocanegra, since the project was renamed. Click Install.
-3. Drag it onto the desktop under the conky panel (about 360 px wide and 120 px tall looks right). You can also put it on the panel.
-4. Open its settings and match the kit colours:
+This works once the installer has run. Play anything — Spotify, YouTube, a game — and bars rise from behind the middle ridge on every screen.
 
-   | role | hex |
-   |---|---|
-   | dark base | `#4a3221` |
-   | mid | `#89654a` |
-   | accent | `#c4a074` |
-   | light | `#e4cca2` |
-   | highlight | `#f5e8ca` |
+How it works: `sepia-cava.service` runs CAVA and serves the audio levels on `127.0.0.1` only. The wallpaper plugin reads them about 30 times a second and draws the bars between the wallpaper and the ridge cut-out.
 
-   A vertical gradient from `#89654a` to `#f5e8ca` with a transparent background matches the panel best.
+To adjust it, right-click the desktop → **Desktop and Wallpaper**. With **Sepia Summit (live)** selected, you can change:
 
-If it says **"CAVA is not running"**, check that `cava` was layered (`which cava`). If it still won't start, see the troubleshooting section on the widget's GitHub page, github.com/luisbocanegra/kurve.
+| setting | default | what it does |
+|---|---|---|
+| Bars per screen | 96 | more = thinner bars |
+| Valley line | 80% | where the bars start, measured from the top. Keep it below the ridge so the bases stay hidden |
+| Max bar height | 42% | how far up the sky they can reach |
+| Opacity | 50% | lower = hazier, more like light than bars |
+| Bar colour | `#f5e6c8` | try `#e4cca2` for warmer bars |
+| Glow | on | soft bloom around the bars |
 
-For a quick terminal visualiser, just run `cava`. It already uses the sepia theme.
+**Bars behind a different ridge:** regenerate with `--split`. 0 is the farthest range and 5 the nearest; the default is 3. Higher numbers put more mountains in front of the bars:
+```bash
+python3 tools/make_wallpaper.py wallpapers --split 2
+```
+
+You can still add the **Kurve** widget for a small visualiser somewhere else. Find it under Add Widgets → Get New Widgets and search "Kurve".
 
 ## 4. Make the rest of Plasma match
 
@@ -115,6 +126,15 @@ In XWayland mode, you can also pin it to a monitor with a KWin Window Rule: Syst
 **It disappears when I press Meta+D.** You need conky 1.25 or newer, where `own_window_namespace = 'desktop'` keeps it visible. Older builds just hide it.
 
 **Temps show `--`.** Run `~/.config/conky/sepia/scripts/temps.sh cpu`. AMD CPU temps come from the `k10temp` sensor, which loads by default on Bazzite.
+
+**The wallpaper went black after install.** Plasma hasn't picked up the new plugin yet. Run `systemctl --user restart plasma-plasmashell`. If you'd rather not use it, run `LIVE=0 ./install.sh` to go back to the plain image.
+
+**The bars don't move.** Check the audio service:
+```bash
+systemctl --user status sepia-cava
+curl -s http://127.0.0.1:37421/ | head -c 80; echo   # should print numbers while music plays
+```
+If `cava` isn't found, layer it (`rpm-ostree install cava`) and reboot.
 
 **GPU shows `no nvidia-smi`.** You need the `bazzite-nvidia` image. It ships `nvidia-smi`.
 

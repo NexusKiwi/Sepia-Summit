@@ -1,0 +1,11 @@
+[Unit]
+Description=Sepia Summit audio levels (CAVA -> localhost)
+After=pipewire.service
+
+[Service]
+ExecStart=%h/.local/bin/sepia-cava-server
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

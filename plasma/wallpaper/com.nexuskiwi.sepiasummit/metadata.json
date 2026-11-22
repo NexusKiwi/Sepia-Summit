@@ -1,0 +1,14 @@
+{
+    "KPlugin": {
+        "Id": "com.nexuskiwi.sepiasummit",
+        "Name": "Sepia Summit (live)",
+        "Description": "Sepia mountain wallpaper with an audio visualiser rising from the valley behind the ridges",
+        "Authors": [ { "Name": "NexusKiwi" } ],
+        "License": "MIT",
+        "Version": "1.0",
+        "Website": "https://github.com/NexusKiwi/Sepia-Summit",
+        "Icon": "preferences-desktop-wallpaper"
+    },
+    "KPackageStructure": "Plasma/Wallpaper",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
