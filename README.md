@@ -112,6 +112,8 @@ You can still add the **Kurve** widget for a small visualiser somewhere else. Fi
   ```
   Then re-run `./install.sh`. Try a few seeds — each gives a different range. The sun position and sepia palette are at the top of the script.
 
+- **Dock and app drawer**: `install.sh` replaces the taskbars with one floating dock on the left monitor. The grid button or the Meta key opens the drawer. Desktop icons are hidden from view but stay in `~/Desktop`, and they appear in the drawer. Use `DOCK=0 ./install.sh` to skip this. Your earlier layout is saved in `~/.local/share/sepia-summit/backups/`.
+
 ## Troubleshooting
 
 **Conky doesn't show up.** Run `~/.local/bin/sepia-conky -c ~/.config/conky/sepia/sepia.conf` in a terminal to see its errors. The panel needs conky 1.25 or newer on Wayland. `install.sh` downloads a verified copy to `~/.local/bin/sepia-conky` if your system version is older.

@@ -142,6 +142,43 @@ else
   c "qdbus not found — set the wallpaper by hand from $WPDIR"
 fi
 
+# Dock and app drawer -------------------------------------------------------
+# Replaces the taskbars with one floating dock on the left monitor and hides
+# desktop icons from view (the files stay). DOCK=0 skips this.
+if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
+  restart_shell() {
+    systemctl --user restart plasma-plasmashell
+    for _ in $(seq 1 30); do
+      "$QDBUS" org.kde.plasmashell /PlasmaShell org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1 && break
+      sleep 0.5
+    done
+    sleep 3
+  }
+  DRAWER_SRC="$KIT/plasma/drawer/com.nexuskiwi.sepiadrawer"
+  DRAWER="$HOME/.local/share/plasma/plasmoids/com.nexuskiwi.sepiadrawer"
+  APPLETS="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+  drawer_changed=0
+  diff -rq "$DRAWER_SRC" "$DRAWER" >/dev/null 2>&1 || drawer_changed=1
+  rm -rf "$DRAWER"; mkdir -p "$(dirname "$DRAWER")"
+  cp -r "$DRAWER_SRC" "$DRAWER"
+
+  if grep -q '^plugin=com.nexuskiwi.sepiadrawer$' "$APPLETS" 2>/dev/null; then
+    [ "$drawer_changed" = 1 ] && restart_shell
+  else
+    BACKUP="$HOME/.local/share/sepia-summit/backups/pre-dock-$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$BACKUP"
+    for f in plasma-org.kde.plasma.desktop-appletsrc plasmashellrc; do
+      [ -f "$HOME/.config/$f" ] && cp -p "$HOME/.config/$f" "$BACKUP/"
+    done
+    c "Previous panel layout saved to $BACKUP"
+    restart_shell
+    "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(cat "$KIT/plasma/apply-dock.js")" \
+      || c "Couldn't set up the dock automatically."
+    sleep 12   # let Plasma save the layout, the widget order applies on reload
+    restart_shell
+  fi
+fi
+
 # 7. start it ---------------------------------------------------------------
 if [ -n "$CONKY_BIN" ]; then
   pkill -f -- "-c $CONF/sepia.conf" 2>/dev/null || true

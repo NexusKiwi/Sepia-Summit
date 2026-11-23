@@ -75,6 +75,8 @@ plasma/wallpaper/…/           Plasma 6 wallpaper package (metadata.json, conte
 plasma/sepia-cava-server.py   CAVA → localhost HTTP (stdlib only, 127.0.0.1 only)
 plasma/sepia-cava.service     systemd --user unit (ExecStart=%h/.local/bin/sepia-cava-server)
 plasma/set-wallpaper.js       plasmashell evaluateScript: picks images per screen (@WPDIR@ @LIVE@)
+plasma/apply-dock.js          plasmashell evaluateScript: floating dock on the left monitor, hides desktop icons
+plasma/drawer/…/              app drawer plasmoid (contents/code/sepia-drawer.py lists and launches apps)
 tools/make_wallpaper.py       generator (numpy + Pillow). --seed, --split, --only
 wallpapers/                   generated PNGs (+ _LEFT/_RIGHT halves for dual, + _front cut-outs)
 docs/                         README images (the panel close-up and live preview are MOCK-UPS)

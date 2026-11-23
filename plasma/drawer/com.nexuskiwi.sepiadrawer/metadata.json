@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "NexusKiwi" }],
+        "Category": "Application Launchers",
+        "Description": "Sepia Summit app drawer with Games, Apps and System tabs",
+        "Icon": "view-app-grid-symbolic",
+        "Id": "com.nexuskiwi.sepiadrawer",
+        "License": "MIT",
+        "Name": "Sepia Drawer",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-Provides": ["org.kde.plasma.launchermenu"]
+}
