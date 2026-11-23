@@ -14,7 +14,7 @@ WallpaperItem {
     readonly property string bgSource: configuration.Background || ""
     readonly property string fgSource: configuration.Foreground || ""
     readonly property int barCount: Math.max(8, configuration.BarCount || 96)
-    readonly property real baseline: (configuration.Baseline || 80) / 100
+    readonly property real valleyLine: (configuration.Baseline || 80) / 100
     readonly property real maxHeight: (configuration.MaxHeight || 42) / 100
     readonly property real barOpacity: (configuration.BarOpacity === undefined ? 50 : configuration.BarOpacity) / 100
     readonly property color barColor: configuration.BarColor || "#f5e6c8"
@@ -56,7 +56,7 @@ WallpaperItem {
                 width: Math.max(1, slot * 0.6)
                 x: index * slot + (slot - width) / 2
                 height: Math.max(0, v) * viz.height * root.maxHeight
-                y: viz.height * root.baseline - height
+                y: viz.height * root.valleyLine - height
                 radius: width / 2
                 gradient: Gradient {
                     GradientStop { position: 0.0; color: Qt.rgba(root.barColor.r, root.barColor.g, root.barColor.b, 1.0) }

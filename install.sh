@@ -63,7 +63,7 @@ c "network: $IFACE   disk: $DISK   monitor index: $HEAD"
 
 # 3. conky ------------------------------------------------------------------
 mkdir -p "$CONF/scripts"
-cp "$KIT"/conky/scripts/*.sh "$CONF/scripts/"
+cp "$KIT"/conky/scripts/*.sh "$KIT"/conky/scripts/*.lua "$CONF/scripts/"
 chmod +x "$CONF"/scripts/*.sh
 EXTRA_ESC="$(printf '%s' "$EXTRA" | sed 's/[&|]/\\&/g')"
 sed -e "s|@IFACE@|$IFACE|g" -e "s|@DISK@|$DISK|g" -e "s|@HEAD@|$HEAD|g" \
@@ -79,6 +79,19 @@ Exec=sh -c "sleep 6 && conky -c $CONF/sepia.conf"
 X-KDE-autostart-phase=2
 Hidden=false
 EOF
+
+# KWin script that keeps the panel above Plasma's desktop layer
+KEEPER="$HOME/.local/share/kwin/scripts/sepia-panel-keeper"
+mkdir -p "$KEEPER"
+cp -r "$KIT/plasma/kwin/sepia-panel-keeper/." "$KEEPER/"
+if command -v kwriteconfig6 >/dev/null; then
+  kwriteconfig6 --file kwinrc --group Plugins --key sepia-panel-keeperEnabled true
+  QDBUS_KWIN="$(command -v qdbus6 || command -v qdbus || command -v qdbus-qt6 || true)"
+  if [ -n "$QDBUS_KWIN" ]; then
+    "$QDBUS_KWIN" org.kde.KWin /KWin org.kde.KWin.reconfigure >/dev/null 2>&1 || true
+    "$QDBUS_KWIN" org.kde.KWin /Scripting org.kde.kwin.Scripting.start >/dev/null 2>&1 || true
+  fi
+fi
 
 # 4. cava theme -------------------------------------------------------------
 mkdir -p "$HOME/.config/cava"

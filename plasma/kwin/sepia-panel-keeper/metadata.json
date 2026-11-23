@@ -1,0 +1,11 @@
+{
+    "KPackageStructure": "KWin/Script",
+    "KPlugin": {
+        "Description": "Keeps the Sepia Summit conky panel above Plasma's desktop layer",
+        "Id": "sepia-panel-keeper",
+        "Name": "Sepia Panel Keeper",
+        "Version": "1.0"
+    },
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js"
+}

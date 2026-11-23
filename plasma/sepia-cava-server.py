@@ -5,18 +5,18 @@ The Sepia Summit (live) wallpaper polls  http://127.0.0.1:37421/  and gets back
 one line like  "12;340;998;...;0"  (values 0-1000, 128 bars).
 Only listens on 127.0.0.1. Restarts CAVA if it exits.
 """
-import os, subprocess, tempfile, threading, time
+import os, re, subprocess, tempfile, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(os.environ.get("SEPIA_PORT", "37421"))
 BARS = int(os.environ.get("SEPIA_BARS", "128"))
-CONF = f"""[general]
-bars = {BARS}
+CONF = """[general]
+bars = {bars}
 framerate = 60
 autosens = 1
 
 [input]
-method = pipewire
+method = {method}
 source = auto
 
 [output]
@@ -31,23 +31,35 @@ channels = mono
 [smoothing]
 noise_reduction = 60
 """
+# Not every cava build has PipeWire input (Fedora's doesn't), so fall back to Pulse.
+METHODS = ("pipewire", "pulse")
+TITLE = re.compile(rb"\x1b\][^\x07]*\x07")  # cava sets a terminal title on stdout
+FRAME = re.compile(rb"[0-9]+(;[0-9]+)*")
 ZERO = ";".join(["0"] * BARS).encode()
 state = {"frame": ZERO, "t": 0.0}
 
 
 def reader():
     fd, path = tempfile.mkstemp(prefix="sepia-cava-", suffix=".conf")
-    with os.fdopen(fd, "w") as f:
-        f.write(CONF)
+    os.close(fd)
+    m = 0
     while True:
+        with open(path, "w") as f:
+            f.write(CONF.format(bars=BARS, method=METHODS[m]))
+        got_frame = False
         try:
             p = subprocess.Popen(["cava", "-p", path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
             for line in p.stdout:
-                state["frame"] = line.strip().rstrip(b";")
-                state["t"] = time.monotonic()
+                frame = TITLE.sub(b"", line).strip().rstrip(b";")
+                if FRAME.fullmatch(frame):
+                    got_frame = True
+                    state["frame"] = frame
+                    state["t"] = time.monotonic()
             p.wait()
         except FileNotFoundError:
             pass
+        if not got_frame:
+            m = (m + 1) % len(METHODS)
         time.sleep(2)
 
 
