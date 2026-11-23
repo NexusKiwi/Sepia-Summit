@@ -105,7 +105,7 @@ You can still add the **Kurve** widget for a small visualiser somewhere else. Fi
 ## 5. Customising
 
 - **Different CPU?** The panel shows 16 per-thread bars (a Ryzen 7 5800X). For a different thread count, add or remove `${cpubar cpuN 3,34}` entries in the PROCESSOR section. The GPU section needs an NVIDIA card (it uses `nvidia-smi`).
-- **Panel layout/colours**: edit `~/.config/conky/sepia/sepia.conf`. Conky reloads by itself when you save. The colours are `color1`–`color4` near the top. `own_window_argb_value` sets panel opacity (0 = see-through, 255 = solid).
+- **Panel layout/colours**: edit `~/.config/conky/sepia/sepia.conf`. Conky reloads by itself when you save. The colours are `color1`–`color4` near the top. Panel opacity and corner radius are `ALPHA` and `RADIUS` at the top of `~/.config/conky/sepia/scripts/panel.lua`.
 - **Different mountains**: change the seed. This needs numpy and pillow; on Bazzite, run it in a distrobox:
   ```bash
   python3 tools/make_wallpaper.py wallpapers --seed 7
@@ -114,16 +114,9 @@ You can still add the **Kurve** widget for a small visualiser somewhere else. Fi
 
 ## Troubleshooting
 
-**Conky doesn't show up, or flickers.** Conky's Wayland support on KDE still varies between versions. Open `sepia.conf` and swap to the XWayland fallback. The lines are already in the file, commented out:
-```lua
-out_to_wayland = false, out_to_x = true,
-own_window_type = 'desktop',
-```
-In XWayland mode, you can also pin it to a monitor with a KWin Window Rule: System Settings → Window Rules, match window class `Conky`.
+**Conky doesn't show up.** Run `~/.local/bin/sepia-conky -c ~/.config/conky/sepia/sepia.conf` in a terminal to see its errors. The panel needs conky 1.25 or newer on Wayland. `install.sh` downloads a verified copy to `~/.local/bin/sepia-conky` if your system version is older.
 
-**It's on the wrong monitor.** Run `HEAD=0 ./install.sh` (or `HEAD=1`). If Wayland ignores that, use the XWayland fallback above plus a Window Rule.
-
-**It disappears when I press Meta+D.** You need conky 1.25 or newer, where `own_window_namespace = 'desktop'` keeps it visible. Older builds just hide it.
+**It's on the wrong monitor.** Run `HEAD=0 ./install.sh` for the leftmost monitor, `HEAD=1` for the next one, and so on.
 
 **Temps show `--`.** Run `~/.config/conky/sepia/scripts/temps.sh cpu`. AMD CPU temps come from the `k10temp` sensor, which loads by default on Bazzite.
 

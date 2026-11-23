@@ -86,7 +86,7 @@ docs/                         README images (the panel close-up and live preview
 |---|---|
 | darkest / panel background | `#1c120c` (conky at argb 150) |
 | dark base | `#4a3221` |
-| dim labels | `#89654a` |
+| dim labels | `#b89b7c` |
 | tan accent / headings | `#c4a074` |
 | values | `#e4cca2` |
 | cream text / bars | `#f5e8ca` (bars `#f5e6c8`) |

@@ -8,6 +8,7 @@ Kirigami.FormLayout {
 
     property alias cfg_Background: bg.text
     property alias cfg_Foreground: fg.text
+    property alias cfg_Visualiser: visualiser.checked
     property alias cfg_BarCount: barCount.value
     property alias cfg_Baseline: baseline.value
     property alias cfg_MaxHeight: maxHeight.value
@@ -21,6 +22,7 @@ Kirigami.FormLayout {
 
     Item { Kirigami.FormData.isSection: true; Kirigami.FormData.label: "Visualiser" }
 
+    QQC2.CheckBox { id: visualiser; Kirigami.FormData.label: "Show on this screen:" }
     QQC2.SpinBox { id: barCount; Kirigami.FormData.label: "Bars per screen:"; from: 16; to: 256 }
     QQC2.SpinBox { id: baseline; Kirigami.FormData.label: "Valley line (% from top):"; from: 30; to: 100 }
     QQC2.SpinBox { id: maxHeight; Kirigami.FormData.label: "Max bar height (% of screen):"; from: 5; to: 90 }

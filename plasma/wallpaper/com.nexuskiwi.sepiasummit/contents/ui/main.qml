@@ -13,6 +13,7 @@ WallpaperItem {
 
     readonly property string bgSource: configuration.Background || ""
     readonly property string fgSource: configuration.Foreground || ""
+    readonly property bool visualiser: configuration.Visualiser !== false
     readonly property int barCount: Math.max(8, configuration.BarCount || 96)
     readonly property real valleyLine: (configuration.Baseline || 80) / 100
     readonly property real maxHeight: (configuration.MaxHeight || 42) / 100
@@ -37,8 +38,9 @@ WallpaperItem {
     Item {
         id: viz
         anchors.fill: parent
+        visible: root.visualiser
         opacity: root.barOpacity
-        layer.enabled: root.glow
+        layer.enabled: root.glow && root.visualiser
         layer.effect: MultiEffect {
             shadowEnabled: true
             shadowColor: root.barColor
@@ -80,7 +82,7 @@ WallpaperItem {
     Timer {
         interval: 33
         repeat: true
-        running: root.fgSource !== ""
+        running: root.visualiser && root.fgSource !== ""
         onTriggered: {
             if (root.busy) return
             root.busy = true

@@ -14,7 +14,6 @@ c "── Sepia desktop kit ──"
 
 # 1. packages ---------------------------------------------------------------
 missing=()
-command -v conky >/dev/null || missing+=(conky)
 command -v cava  >/dev/null || missing+=(cava)
 if [ ${#missing[@]} -gt 0 ]; then
   c "Missing: ${missing[*]}"
@@ -61,6 +60,36 @@ done < <(findmnt -rno TARGET 2>/dev/null | grep -E '^/(run/media/[^/]+|var/mnt|m
 c "network: $IFACE   disk: $DISK   monitor index: $HEAD"
 [ -n "$EXTRA" ] && c "extra drives: $(findmnt -rno TARGET | grep -E '^/(run/media/[^/]+|var/mnt|mnt|media)/[^/]+$' | head -n3 | tr '\n' ' ')"
 
+# The panel needs conky 1.25+ to stay on the desktop layer under Wayland.
+# Use the system conky if it's new enough, otherwise a pinned, verified AppImage.
+CONKY_VER="1.26.2"
+CONKY_SHA="1d1390b7ebd162d3ba55d6c29693b9aa410a7afd8e6f11b05509e4716038927d"
+CONKY_URL="https://github.com/brndnmtthws/conky/releases/download/v$CONKY_VER/conky-ubuntu-24.04-x86_64-v$CONKY_VER-release.AppImage"
+CONKY_APP="$HOME/.local/bin/sepia-conky"
+
+conky_is_new_enough() {
+  local v
+  v="$("$1" --version 2>/dev/null | awk '/^conky /{print $2; exit}' | cut -d- -f1)"
+  [ -n "$v" ] && [ "$(printf '%s\n1.25.0\n' "$v" | sort -V | head -n1)" = "1.25.0" ]
+}
+
+CONKY_BIN="$(command -v conky || true)"
+if [ -z "$CONKY_BIN" ] || ! conky_is_new_enough "$CONKY_BIN"; then
+  if ! { [ -x "$CONKY_APP" ] && echo "$CONKY_SHA  $CONKY_APP" | sha256sum -c --status; }; then
+    c "Downloading conky $CONKY_VER…"
+    mkdir -p "$HOME/.local/bin"
+    tmp="$(mktemp "$HOME/.local/bin/.sepia-conky.XXXXXX")"
+    if curl -fsSL --retry 2 "$CONKY_URL" -o "$tmp" && echo "$CONKY_SHA  $tmp" | sha256sum -c --status; then
+      chmod 755 "$tmp"
+      mv -f "$tmp" "$CONKY_APP"
+    else
+      rm -f "$tmp"
+      c "Couldn't download conky $CONKY_VER. The panel may vanish on Show Desktop."
+    fi
+  fi
+  [ -x "$CONKY_APP" ] && CONKY_BIN="$CONKY_APP"
+fi
+
 # 3. conky ------------------------------------------------------------------
 mkdir -p "$CONF/scripts"
 cp "$KIT"/conky/scripts/*.sh "$KIT"/conky/scripts/*.lua "$CONF/scripts/"
@@ -75,23 +104,10 @@ cat > "$HOME/.config/autostart/conky-sepia.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Conky (Sepia)
-Exec=sh -c "sleep 6 && conky -c $CONF/sepia.conf"
+Exec=sh -c "sleep 6 && $CONF/scripts/start-panel.sh ${CONKY_BIN:-conky} $CONF/sepia.conf $HEAD"
 X-KDE-autostart-phase=2
 Hidden=false
 EOF
-
-# KWin script that keeps the panel above Plasma's desktop layer
-KEEPER="$HOME/.local/share/kwin/scripts/sepia-panel-keeper"
-mkdir -p "$KEEPER"
-cp -r "$KIT/plasma/kwin/sepia-panel-keeper/." "$KEEPER/"
-if command -v kwriteconfig6 >/dev/null; then
-  kwriteconfig6 --file kwinrc --group Plugins --key sepia-panel-keeperEnabled true
-  QDBUS_KWIN="$(command -v qdbus6 || command -v qdbus || command -v qdbus-qt6 || true)"
-  if [ -n "$QDBUS_KWIN" ]; then
-    "$QDBUS_KWIN" org.kde.KWin /KWin org.kde.KWin.reconfigure >/dev/null 2>&1 || true
-    "$QDBUS_KWIN" org.kde.KWin /Scripting org.kde.kwin.Scripting.start >/dev/null 2>&1 || true
-  fi
-fi
 
 # 4. cava theme -------------------------------------------------------------
 mkdir -p "$HOME/.config/cava"
@@ -127,9 +143,10 @@ else
 fi
 
 # 7. start it ---------------------------------------------------------------
-if command -v conky >/dev/null; then
-  pkill -f "conky -c $CONF/sepia.conf" 2>/dev/null || true
-  (conky -c "$CONF/sepia.conf" >/dev/null 2>&1 &)
+if [ -n "$CONKY_BIN" ]; then
+  pkill -f -- "-c $CONF/sepia.conf" 2>/dev/null || true
+  sleep 1
+  "$CONF/scripts/start-panel.sh" "$CONKY_BIN" "$CONF/sepia.conf" "$HEAD"
 fi
 
 c "All done. If the wallpaper shows black, run: systemctl --user restart plasma-plasmashell"
