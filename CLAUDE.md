@@ -92,8 +92,10 @@ docs/                         README images (the panel close-up and live preview
 
 1. **Visualiser placement** — dual screens already use the right monitor only (per-screen
    `Visualiser` setting). Still to add: a choice of which monitor.
-2. ~~**Lock screen**~~ — done: install.sh points kscreenlocker at the single-screen image (one image for
-   all monitors). Could later use the live plugin there too.
+2. ~~**Lock screen**~~ — done. The greeter gives every monitor the same wallpaper config, so with two
+   monitors and LIVE=1 it uses the plugin's `Span` mode (dual image, each monitor shows its slice from
+   `Screen.virtualX`, bars on the rightmost only). Otherwise the single-screen image. Preview without
+   locking: `/usr/libexec/kscreenlocker_greet --testing` (kill it afterwards).
 3. **Login screen** — the owner's machine uses **Plasma Login Manager**: Breeze only, but set its
    wallpaper (maybe even the live plugin). If **SDDM**: a full custom `sepia-summit` SDDM theme.
    Bazzite is immutable, so themes go in a writable location; check the Bazzite docs.

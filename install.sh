@@ -143,19 +143,17 @@ else
 fi
 
 # Lock screen ---------------------------------------------------------------
-# The lock screen shows one image on every monitor, so use the single-screen
-# (or ultrawide) picture sized for the tallest monitor. LOCK=0 skips this.
+# The lock screen gives every monitor the same wallpaper settings. With two
+# monitors and the live plugin, its Span mode shows each monitor its own half of
+# the dual image (bars on the right), so the lock screen matches the desktop.
+# Otherwise use the single-screen (or ultrawide) picture for the tallest monitor.
+# LOCK=0 skips this.
 if [ "${LOCK:-1}" = "1" ] && command -v kwriteconfig6 >/dev/null; then
-  read -r lw lh < <(kscreen-doctor -o 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk '
+  read -r ln lw lh < <(kscreen-doctor -o 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk '
     /^Output:/ { on = 0 } /^[[:space:]]*enabled$/ { on = 1 }
-    /Geometry:/ && on { split($3, wh, "x"); if (wh[2] + 0 > h) { w = wh[1]; h = wh[2] } }
-    END { print w + 0, h + 0 }')
+    /Geometry:/ && on { n++; split($3, wh, "x"); if (wh[2] + 0 > h) { w = wh[1]; h = wh[2] } }
+    END { print n + 0, w + 0, h + 0 }')
   tall=1080; [ "${lh:-0}" -gt 1150 ] && tall=1440
-  if [ "${lh:-0}" -gt 0 ] && [ $((lw * 10 / lh)) -ge 22 ]; then
-    LOCKIMG="sepia-mountains_ultrawide_$([ $tall = 1440 ] && echo 3440x1440 || echo 2560x1080).png"
-  else
-    LOCKIMG="sepia-mountains_single_$([ $tall = 1440 ] && echo 2560x1440 || echo 1920x1080).png"
-  fi
   LOCKRC="$HOME/.config/kscreenlockerrc"
   if [ -f "$LOCKRC" ] && ! grep -qs sepia-mountains "$LOCKRC"; then
     BACKUP="$HOME/.local/share/sepia-summit/backups/pre-lock-$(date +%Y%m%d-%H%M%S)"
@@ -163,13 +161,26 @@ if [ "${LOCK:-1}" = "1" ] && command -v kwriteconfig6 >/dev/null; then
     cp -p "$LOCKRC" "$BACKUP/"
     c "Previous lock screen settings saved to $BACKUP"
   fi
-  kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image
-  kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General \
-    --key Image "file://$WPDIR/$LOCKIMG"
-  kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General \
-    --key PreviewImage "file://$WPDIR/$LOCKIMG"
-  kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General \
-    --key FillMode 2
+  lockset() { kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group "$1" --group General --key "$2" "$3"; }
+  if [ "$LIVE" = "1" ] && [ "${ln:-0}" -eq 2 ]; then
+    LOCKIMG="sepia-mountains_$([ $tall = 1440 ] && echo dual-1440p_5120x1440 || echo dual-1080p_3840x1080).png"
+    kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin com.nexuskiwi.sepiasummit
+    lockset com.nexuskiwi.sepiasummit Background "file://$WPDIR/$LOCKIMG"
+    lockset com.nexuskiwi.sepiasummit Foreground "file://$WPDIR/${LOCKIMG%.png}_front.png"
+    lockset com.nexuskiwi.sepiasummit Span true
+    lockset com.nexuskiwi.sepiasummit Visualiser true
+  else
+    kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image
+  fi
+  # The static picture, used without the live plugin (and kept ready if you switch back).
+  if [ "${lh:-0}" -gt 0 ] && [ $((lw * 10 / lh)) -ge 22 ]; then
+    STATICIMG="sepia-mountains_ultrawide_$([ $tall = 1440 ] && echo 3440x1440 || echo 2560x1080).png"
+  else
+    STATICIMG="sepia-mountains_single_$([ $tall = 1440 ] && echo 2560x1440 || echo 1920x1080).png"
+  fi
+  lockset org.kde.image Image "file://$WPDIR/$STATICIMG"
+  lockset org.kde.image PreviewImage "file://$WPDIR/$STATICIMG"
+  lockset org.kde.image FillMode 2
 fi
 
 # Dock and app drawer -------------------------------------------------------

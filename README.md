@@ -59,7 +59,7 @@ If `cava` is missing, the first run offers to layer it with `rpm-ostree`. Say **
 - installs the live wallpaper plugin and starts the audio service (`sepia-cava.service`)
 - copies the wallpapers to `~/Pictures/Wallpapers/sepia-mountains` and sets them **per monitor**. With two screens, the left screen gets the left half and the right screen gets the right half. With an ultrawide, it gets the ultrawide image.
 - replaces your taskbars with the floating dock and app drawer, and hides desktop icons from view (the files stay in `~/Desktop`)
-- sets the lock screen to the sepia mountains (your previous lock screen settings are backed up)
+- sets the lock screen to the sepia mountains, matching the desktop across both monitors when there are two (your previous lock screen settings are backed up)
 - applies the sepia Plasma style, app colours and Konsole profile
 
 Your previous settings are saved in `~/.local/share/sepia-summit/backups/`.

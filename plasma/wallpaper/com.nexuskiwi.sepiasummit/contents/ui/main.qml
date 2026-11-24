@@ -4,8 +4,12 @@
 //   2. audio visualiser bars, their base hidden down in the valley (Baseline)
 //   3. a cut-out of the nearer ridges (the *_front.png), so bars rise from behind them
 // Audio levels come from sepia-cava-server (a tiny local service around CAVA).
+// With Span on, Background/Foreground are one image for the whole desktop and each
+// monitor shows its own slice of it. The lock screen uses this, because it gives
+// every monitor the same settings. The bars then show on the rightmost monitor only.
 import QtQuick
 import QtQuick.Effects
+import QtQuick.Window
 import org.kde.plasma.plasmoid
 
 WallpaperItem {
@@ -22,13 +26,31 @@ WallpaperItem {
     readonly property bool glow: configuration.Glow !== false
     readonly property string endpoint: "http://127.0.0.1:" + (configuration.Port || 37421) + "/"
 
+    // The desktop's extent, from every monitor's position (logical pixels).
+    readonly property bool span: configuration.Span === true
+    readonly property var desk: {
+        const ss = Qt.application.screens
+        let l = Infinity, r = -Infinity
+        for (let i = 0; i < ss.length; i++) {
+            l = Math.min(l, ss[i].virtualX)
+            r = Math.max(r, ss[i].virtualX + ss[i].width)
+        }
+        return ss.length ? { left: l, right: r } : { left: 0, right: width }
+    }
+    readonly property real sliceX: span ? desk.left - Screen.virtualX : 0
+    readonly property real sliceW: span ? desk.right - desk.left : width
+    readonly property bool rightmost: !span || Screen.virtualX + Screen.width >= desk.right
+    readonly property bool showBars: visualiser && rightmost
+
+    clip: true
+
     property var levels: []
     property bool busy: false
 
     Rectangle { anchors.fill: parent; color: "#2a1c12" }
 
     Image {
-        anchors.fill: parent
+        x: root.sliceX; width: root.sliceW; height: parent.height
         source: root.bgSource
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
@@ -38,9 +60,9 @@ WallpaperItem {
     Item {
         id: viz
         anchors.fill: parent
-        visible: root.visualiser
+        visible: root.showBars
         opacity: root.barOpacity
-        layer.enabled: root.glow && root.visualiser
+        layer.enabled: root.glow && root.showBars
         layer.effect: MultiEffect {
             shadowEnabled: true
             shadowColor: root.barColor
@@ -72,7 +94,7 @@ WallpaperItem {
     }
 
     Image {
-        anchors.fill: parent
+        x: root.sliceX; width: root.sliceW; height: parent.height
         source: root.fgSource
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
@@ -84,7 +106,7 @@ WallpaperItem {
     Timer {
         interval: 33
         repeat: true
-        running: root.visualiser && root.fgSource !== ""
+        running: root.showBars && root.fgSource !== ""
         onTriggered: {
             if (root.busy) return
             root.busy = true
