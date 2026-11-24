@@ -13,8 +13,9 @@ What's included:
 
 - **Wallpaper**: a sepia mountain range generated for this kit. It comes in sizes for dual 1440p, dual 1080p, ultrawide (3440 and 2560) and single screens. All sizes show the same mountains, so the scene carries across both monitors. The tall peaks sit on the left, with calmer sky on the right where the widgets go.
 - **Conky stats panel** (right edge): clock, CPU load/temp/clock speed with 16 per-thread bars, RTX 3070 load/temp/VRAM/power/fan, RAM/swap, drive space, NVMe temps, disk read/write, network and top processes.
-- **Live wallpaper with the visualiser behind the mountains**: a Plasma 6 wallpaper plugin draws the wallpaper, then audio bars across the full width of each screen, then a cut-out of the nearer ridges on top. The bars look like they're rising out of the valley behind the mountains. When nothing is playing it's just the normal wallpaper.
-- **Left side**: a vertical app panel for your programs.
+- **Live wallpaper with the visualiser behind the mountains**: a Plasma 6 wallpaper plugin draws the wallpaper, then full-width audio bars (on the right monitor with two screens), then a cut-out of the nearer ridges on top. The bars look like they're rising out of the valley behind the mountains. When nothing is playing it's just the normal wallpaper.
+- **Floating dock and app drawer** (left monitor): the dock shows only your open apps. The drawer sorts everything into Games, Apps and System, with search and lock, log out, sleep, restart and shut down buttons.
+- **Matching theme**: a sepia Plasma style, app colours and Konsole profile.
 
 Conky and the live wallpaper draw natively, so they use far less than Rainmeter did. Expect well under 1% CPU.
 
@@ -28,6 +29,9 @@ plasma/wallpaper/          the live wallpaper plugin (com.nexuskiwi.sepiasummit)
 plasma/sepia-cava-server.py  runs CAVA and serves audio levels on 127.0.0.1:37421
 plasma/sepia-cava.service  user service that keeps the server running
 plasma/set-wallpaper.js    picks the right images for each monitor
+plasma/apply-dock.js       sets up the floating dock
+plasma/drawer/             the app drawer widget
+plasma/theme/, plasma/colors/, konsole/   Plasma style, app colours, Konsole profile
 wallpapers/                all the PNGs: dual images come pre-split _LEFT/_RIGHT,
                            and every image has a _front.png ridge cut-out
 tools/make_wallpaper.py    the generator, if you want different mountains
@@ -48,32 +52,33 @@ Then:
 ./install.sh
 ```
 
-The first run notices that `conky` and `cava` are missing and offers to layer them with `rpm-ostree`. Say **y**, **reboot**, then run `./install.sh` again. The second run:
+If `cava` is missing, the first run offers to layer it with `rpm-ostree`. Say **y**, **reboot**, then run `./install.sh` again. The installer restarts Plasma a few times, so save your work first. It:
 
 - detects your network adapter, main drive, any extra drives mounted under `/run/media` or `/var/mnt` (game drives etc.), and how many monitors you have
 - installs the conky panel and adds it to autostart
 - installs the live wallpaper plugin and starts the audio service (`sepia-cava.service`)
 - copies the wallpapers to `~/Pictures/Wallpapers/sepia-mountains` and sets them **per monitor**. With two screens, the left screen gets the left half and the right screen gets the right half. With an ultrawide, it gets the ultrawide image.
+- replaces your taskbars with the floating dock and app drawer, and hides desktop icons from view (the files stay in `~/Desktop`)
+- applies the sepia Plasma style, app colours and Konsole profile
+
+Your previous settings are saved in `~/.local/share/sepia-summit/backups/`.
 
 If it guesses something wrong, you can override it:
 ```bash
 HEAD=0 ./install.sh            # put conky on the other monitor
 IFACE=enp5s0 DISK=nvme1n1 ./install.sh
 LIVE=0 ./install.sh            # plain static wallpaper, no visualiser
+DOCK=0 ./install.sh            # keep your own panels and desktop icons
+THEME=0 ./install.sh           # keep your Plasma style, colours and Konsole profile
 ```
 
-## 2. The left side: your apps
+## 2. The dock and app drawer
 
-Plasma does this natively, with no extra installs:
-
-1. Right-click your current panel → **Show Panel Configuration** → set **Position: Left**. Or add a new panel: right-click desktop → **Add Panel → Empty Panel**, then move it left.
-2. Set the width to about 56–64 px. Turn on **Floating** for that detached look.
-3. Add widgets to it: **Application Launcher** at the top, **Icons-only Task Manager** (pin your apps), a **Spacer**, then **System Tray** and **Digital Clock** at the bottom. Conky already shows the big clock, so you can drop the panel clock if you like.
-4. If you have two monitors, put the panel only on the **left** monitor. That keeps the right one clean for the widgets.
+The dock sits at the bottom of the left monitor and holds the drawer button, your open apps and a tray arrow. The grid button or the Meta key opens the drawer. Type to search, and press Enter to launch the first result. The buttons beside the search bar lock, log out, sleep, restart and shut down. Hibernate also appears if your system supports it. Log out, restart and shut down always ask first.
 
 ## 3. The visualiser behind the mountains
 
-This works once the installer has run. Play anything — Spotify, YouTube, a game — and bars rise from behind the middle ridge on every screen.
+This works once the installer has run. Play anything — Spotify, YouTube, a game — and bars rise from behind the middle ridge. With two monitors they appear on the right one only.
 
 How it works: `sepia-cava.service` runs CAVA and serves the audio levels on `127.0.0.1` only. The wallpaper plugin reads them about 30 times a second and draws the bars between the wallpaper and the ridge cut-out.
 
@@ -95,11 +100,11 @@ python3 tools/make_wallpaper.py wallpapers --split 2
 
 You can still add the **Kurve** widget for a small visualiser somewhere else. Find it under Add Widgets → Get New Widgets and search "Kurve".
 
-## 4. Make the rest of Plasma match
+## 4. Optional finishing touches
 
-- **System Settings → Colours & Themes → Colours**: pick Breeze Dark. Click the accent colour picker and set a custom accent of `#c4a074`.
+The installer already applies the Plasma style, app colours and Konsole profile. Two extras you can set by hand:
+
 - **Window decorations**: Breeze with "No borders" gives a cleaner look for screenshots.
-- **Konsole**: make a profile with background `#1c120c` at about 85% opacity, foreground `#f5e8ca`, and blur on.
 - **Font**: for a vintage feel, set the window title font to *Noto Serif*.
 
 ## 5. Customising
@@ -111,8 +116,6 @@ You can still add the **Kurve** widget for a small visualiser somewhere else. Fi
   python3 tools/make_wallpaper.py wallpapers --seed 7
   ```
   Then re-run `./install.sh`. Try a few seeds — each gives a different range. The sun position and sepia palette are at the top of the script.
-
-- **Dock and app drawer**: `install.sh` replaces the taskbars with one floating dock on the left monitor. The grid button or the Meta key opens the drawer. Desktop icons are hidden from view but stay in `~/Desktop`, and they appear in the drawer. Use `DOCK=0 ./install.sh` to skip this. Your earlier layout is saved in `~/.local/share/sepia-summit/backups/`.
 
 ## Troubleshooting
 
