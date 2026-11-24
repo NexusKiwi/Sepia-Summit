@@ -115,6 +115,9 @@ def launch(path):
     cwd = entry.get("Path") or str(HOME)
     if not os.path.isdir(cwd):
         cwd = str(HOME)
+    # Give the app its own systemd scope, or it dies whenever plasmashell restarts
+    if shutil.which("systemd-run"):
+        argv = ["systemd-run", "--user", "--scope", "--quiet", "--collect", "--slice=app.slice", "--", *argv]
     subprocess.Popen(argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
     return 0

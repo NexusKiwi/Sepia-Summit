@@ -39,6 +39,7 @@ String(tray.readConfig("knownItems", "")).split(",")
     .forEach(function (item) { if (item && item.charAt(0) !== "@") hidden[item] = true; });
 tray.writeConfig("hiddenItems", Object.keys(hidden).join(","));
 tray.writeConfig("shownItems", "");
+tray.writeConfig("scaleIconsToFit", true);   // makes the arrow's slot square, like the drawer button
 
 tasks.currentConfigGroup = ["General"];
 tasks.writeConfig("launchers", "");   // nothing pinned: the dock only shows what's open

@@ -163,6 +163,13 @@ if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
   cp -r "$DRAWER_SRC" "$DRAWER"
 
   if grep -q '^plugin=com.nexuskiwi.sepiadrawer$' "$APPLETS" 2>/dev/null; then
+    # Docks set up before the square tray arrow existed
+    if ! grep -q '^scaleIconsToFit=true$' "$APPLETS"; then
+      "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript 'panels().forEach(function (p) { p.widgets().forEach(function (w) { if (w.type === "org.kde.plasma.systemtray") { w.currentConfigGroup = ["General"]; w.writeConfig("scaleIconsToFit", true); } }); });' >/dev/null \
+        || c "Couldn't update the tray arrow."
+      sleep 12   # let Plasma save it before the restart
+      drawer_changed=1
+    fi
     [ "$drawer_changed" = 1 ] && restart_shell
   else
     BACKUP="$HOME/.local/share/sepia-summit/backups/pre-dock-$(date +%Y%m%d-%H%M%S)"

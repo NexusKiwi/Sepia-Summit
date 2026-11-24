@@ -6,6 +6,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as P5Support
+import org.kde.plasma.private.sessions as Sessions
 import org.kde.plasma.plasmoid
 
 PlasmoidItem {
@@ -29,6 +30,16 @@ PlasmoidItem {
         const q = query.trim().toLowerCase()
         return apps.filter(a => q ? a.name.toLowerCase().includes(q) : a.tab === currentTab)
     }
+
+    // Only what this machine can actually do (hibernate is often unavailable)
+    readonly property var powerActions: [
+        { action: "lock", label: "Lock", icon: "system-lock-screen-symbolic", available: session.canLock },
+        { action: "logout", label: "Log out", icon: Qt.resolvedUrl("../icons/log-out.svg").toString(), available: session.canLogout },
+        { action: "suspend", label: "Sleep", icon: "system-suspend-symbolic", available: session.canSuspend },
+        { action: "hibernate", label: "Hibernate", icon: "system-hibernate-symbolic", available: session.canHibernate },
+        { action: "reboot", label: "Restart", icon: "system-reboot-symbolic", available: session.canReboot },
+        { action: "shutdown", label: "Shut down", icon: "system-shutdown-symbolic", available: session.canShutdown }
+    ].filter(a => a.available)
 
     // The button is the full representation so Plasma never opens its own popup;
     // the drawer is a separate window.
@@ -67,6 +78,23 @@ PlasmoidItem {
         runner.connectSource("python3 " + quoted(helper) + " launch " + quoted(app.path))
         drawer.visible = false
     }
+
+    // Close first so Plasma's confirmation screen isn't behind the drawer.
+    // Anything that ends the session always asks; lock and sleep are harmless.
+    function runPower(action) {
+        drawer.visible = false
+        const ask = Sessions.SessionManagement.ConfirmationMode.ForcePrompt
+        switch (action) {
+        case "lock": session.lock(); break
+        case "logout": session.requestLogout(ask); break
+        case "suspend": session.suspend(); break
+        case "hibernate": session.hibernate(); break
+        case "reboot": session.requestReboot(ask); break
+        case "shutdown": session.requestShutdown(ask); break
+        }
+    }
+
+    Sessions.SessionManagement { id: session }
 
     P5Support.DataSource {
         id: runner
@@ -146,25 +174,64 @@ PlasmoidItem {
                     anchors.margins: 22
                     spacing: 14
 
-                    QQC2.TextField {
-                        id: search
+                    RowLayout {
                         Layout.fillWidth: true
-                        placeholderText: "Search apps and games"
-                        placeholderTextColor: root.dim
-                        color: root.cream
-                        font.pixelSize: 15
-                        leftPadding: 14
-                        topPadding: 9
-                        bottomPadding: 9
-                        background: Rectangle {
-                            radius: 10
-                            color: Qt.rgba(0xf5 / 255, 0xe8 / 255, 0xca / 255, 0.09)
-                            border.color: search.activeFocus ? root.tan : "transparent"
+                        spacing: 4
+
+                        QQC2.TextField {
+                            id: search
+                            Layout.fillWidth: true
+                            Layout.rightMargin: 6
+                            placeholderText: "Search apps and games"
+                            placeholderTextColor: root.dim
+                            color: root.cream
+                            font.pixelSize: 15
+                            leftPadding: 14
+                            topPadding: 9
+                            bottomPadding: 9
+                            background: Rectangle {
+                                radius: 10
+                                color: Qt.rgba(0xf5 / 255, 0xe8 / 255, 0xca / 255, 0.09)
+                                border.color: search.activeFocus ? root.tan : "transparent"
+                            }
+                            onTextChanged: root.query = text
+                            Keys.onEscapePressed: drawer.visible = false
+                            Keys.onReturnPressed: if (root.shown.length) root.launch(root.shown[0])
+                            Keys.onEnterPressed: if (root.shown.length) root.launch(root.shown[0])
                         }
-                        onTextChanged: root.query = text
-                        Keys.onEscapePressed: drawer.visible = false
-                        Keys.onReturnPressed: if (root.shown.length) root.launch(root.shown[0])
-                        Keys.onEnterPressed: if (root.shown.length) root.launch(root.shown[0])
+
+                        Repeater {
+                            model: root.powerActions
+                            MouseArea {
+                                id: powerButton
+                                required property var modelData
+                                Layout.preferredWidth: 36
+                                Layout.preferredHeight: 36
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.runPower(modelData.action)
+
+                                QQC2.ToolTip.visible: containsMouse
+                                QQC2.ToolTip.delay: 300
+                                QQC2.ToolTip.text: modelData.label
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 10
+                                    color: root.tan
+                                    opacity: parent.containsMouse ? 0.25 : 0
+                                    Behavior on opacity { NumberAnimation { duration: 120 } }
+                                }
+                                Kirigami.Icon {
+                                    anchors.centerIn: parent
+                                    width: 20
+                                    height: 20
+                                    source: powerButton.modelData.icon
+                                    color: powerButton.containsMouse ? root.cream : root.values
+                                    isMask: true
+                                }
+                            }
+                        }
                     }
 
                     RowLayout {
