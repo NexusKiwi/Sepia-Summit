@@ -147,6 +147,8 @@ fi
 # desktop icons from view (the files stay). DOCK=0 skips this.
 if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
   restart_shell() {
+    # Several restarts in a row would otherwise hit systemd's start limit
+    systemctl --user reset-failed plasma-plasmashell 2>/dev/null || true
     systemctl --user restart plasma-plasmashell
     for _ in $(seq 1 30); do
       "$QDBUS" org.kde.plasmashell /PlasmaShell org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1 && break
@@ -184,10 +186,14 @@ if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
       id="$("$QDBUS" "${item%%/*}" "/${item#*/}" org.freedesktop.DBus.Properties.Get org.kde.StatusNotifierItem Id 2>/dev/null | tr -cd 'A-Za-z0-9_.-' || true)"
       [ -n "$id" ] && TRAY_ITEMS+="$id,"
     done
-    "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(sed "s|@TRAY_ITEMS@|$TRAY_ITEMS|" "$KIT/plasma/apply-dock.js")" \
-      || c "Couldn't set up the dock automatically."
-    sleep 12   # let Plasma save the layout, the widget order applies on reload
-    restart_shell
+    # Twice: on the first pass Plasma saves its own order over ours while it
+    # adds the new widgets. Once they exist, the second pass sticks.
+    for _ in 1 2; do
+      "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(sed "s|@TRAY_ITEMS@|$TRAY_ITEMS|" "$KIT/plasma/apply-dock.js")" >/dev/null \
+        || c "Couldn't set up the dock automatically."
+      sleep 12   # let Plasma save the layout, the widget order applies on reload
+      restart_shell
+    done
   fi
 fi
 
@@ -224,14 +230,15 @@ if [ "${THEME:-1}" = "1" ] && command -v plasma-apply-desktoptheme >/dev/null; t
   fi
   mkdir -p "$SCHEMES"
   cp "$KIT/plasma/colors/SepiaSummit.colors" "$SCHEMES/"
-  if command -v plasma-apply-colorscheme >/dev/null; then
-    plasma-apply-colorscheme SepiaSummit >/dev/null 2>&1 || true
-  fi
+  # The accent goes first: applying a scheme bakes the current accent into it
   if command -v kwriteconfig6 >/dev/null; then
     kwriteconfig6 --file kdeglobals --group General --key AccentColor "196,160,116"
     kwriteconfig6 --file kdeglobals --group General --key LastUsedCustomAccentColor "196,160,116"
-    dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notifyChange int32:0 int32:0 2>/dev/null || true
   fi
+  if command -v plasma-apply-colorscheme >/dev/null; then
+    plasma-apply-colorscheme SepiaSummit >/dev/null 2>&1 || true
+  fi
+  dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notifyChange int32:0 int32:0 2>/dev/null || true
 
   # Konsole profile, made the default for new windows
   KONSOLE="$HOME/.local/share/konsole"
