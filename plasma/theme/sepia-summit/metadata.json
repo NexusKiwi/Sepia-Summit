@@ -1,0 +1,13 @@
+{
+    "KPlugin": {
+        "Authors": [{ "Name": "NexusKiwi" }],
+        "Category": "",
+        "Description": "Translucent sepia Plasma style for Sepia Summit, built on Breeze",
+        "EnabledByDefault": true,
+        "Id": "sepia-summit",
+        "License": "LGPL",
+        "Name": "Sepia Summit",
+        "Version": "1.0"
+    },
+    "X-Plasma-API": "5.0"
+}

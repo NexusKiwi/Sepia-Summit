@@ -17,18 +17,28 @@ for (var j = 0; j < ps.length; j++) {
     if (ps[j].id !== dock.id) ps[j].remove();
 }
 
-var keep = { "org.kde.plasma.systemtray": null, "org.kde.plasma.digitalclock": null };
-var drawer = null, tasks = null;
+// The dock is only: drawer, open apps, tray. The clock lives on the stats panel.
+var drawer = null, tasks = null, tray = null;
 dock.widgets().forEach(function (w) {
-    if (w.type in keep && !keep[w.type]) keep[w.type] = w;
+    if (w.type === "org.kde.plasma.systemtray" && !tray) tray = w;
     else if (w.type === "com.nexuskiwi.sepiadrawer" && !drawer) drawer = w;
     else if (w.type === "org.kde.plasma.icontasks" && !tasks) tasks = w;
     else w.remove();
 });
 if (!drawer) drawer = dock.addWidget("com.nexuskiwi.sepiadrawer");
 if (!tasks) tasks = dock.addWidget("org.kde.plasma.icontasks");
-var tray = keep["org.kde.plasma.systemtray"] || dock.addWidget("org.kde.plasma.systemtray");
-var clock = keep["org.kde.plasma.digitalclock"] || dock.addWidget("org.kde.plasma.digitalclock");
+if (!tray) tray = dock.addWidget("org.kde.plasma.systemtray");
+
+// Fold every tray icon behind the tray's arrow. install.sh fills in running app icons.
+tray.currentConfigGroup = ["General"];
+var hidden = {};
+String(tray.readConfig("knownItems", "")).split(",")
+    .concat(String(tray.readConfig("extraItems", "")).split(","))
+    .concat(String(tray.readConfig("hiddenItems", "")).split(","))
+    .concat("@TRAY_ITEMS@".split(","))
+    .forEach(function (item) { if (item && item.charAt(0) !== "@") hidden[item] = true; });
+tray.writeConfig("hiddenItems", Object.keys(hidden).join(","));
+tray.writeConfig("shownItems", "");
 
 tasks.currentConfigGroup = ["General"];
 tasks.writeConfig("launchers", "");   // nothing pinned: the dock only shows what's open
@@ -36,7 +46,7 @@ tasks.writeConfig("showOnlyCurrentScreen", false);
 tasks.writeConfig("showOnlyCurrentDesktop", false);
 
 dock.currentConfigGroup = ["General"];
-dock.writeConfig("AppletOrder", [drawer.id, tasks.id, tray.id, clock.id].join(";"));
+dock.writeConfig("AppletOrder", [drawer.id, tasks.id, tray.id].join(";"));
 dock.location = "bottom";
 dock.height = 52;
 dock.floating = true;

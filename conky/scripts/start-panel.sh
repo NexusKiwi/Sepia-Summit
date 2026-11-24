@@ -39,6 +39,6 @@ previous="$(active)"
 
 switch_to "$target"
 start
-sleep 2
+sleep 5   # the AppImage can take a few seconds to open its surface when the desktop is busy
 [ -n "$previous" ] && switch_to "$previous"
 exit 0

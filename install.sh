@@ -172,10 +172,58 @@ if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
     done
     c "Previous panel layout saved to $BACKUP"
     restart_shell
-    "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(cat "$KIT/plasma/apply-dock.js")" \
+    TRAY_ITEMS=""
+    for item in $("$QDBUS" org.kde.StatusNotifierWatcher /StatusNotifierWatcher org.freedesktop.DBus.Properties.Get org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems 2>/dev/null || true); do
+      id="$("$QDBUS" "${item%%/*}" "/${item#*/}" org.freedesktop.DBus.Properties.Get org.kde.StatusNotifierItem Id 2>/dev/null | tr -cd 'A-Za-z0-9_.-' || true)"
+      [ -n "$id" ] && TRAY_ITEMS+="$id,"
+    done
+    "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(sed "s|@TRAY_ITEMS@|$TRAY_ITEMS|" "$KIT/plasma/apply-dock.js")" \
       || c "Couldn't set up the dock automatically."
     sleep 12   # let Plasma save the layout, the widget order applies on reload
     restart_shell
+  fi
+fi
+
+# Plasma style --------------------------------------------------------------
+# Sepia colours over Breeze's artwork, with more see-through panels and popups.
+# THEME=0 skips this.
+if [ "${THEME:-1}" = "1" ] && command -v plasma-apply-desktoptheme >/dev/null; then
+  STYLE="$HOME/.local/share/plasma/desktoptheme/sepia-summit"
+  BREEZE="/usr/share/plasma/desktoptheme/default"
+  if [ -f "$HOME/.config/plasmarc" ] && [ ! -d "$STYLE" ]; then
+    BACKUP="$HOME/.local/share/sepia-summit/backups/pre-theme-$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$BACKUP"
+    cp -p "$HOME/.config/plasmarc" "$BACKUP/"
+    c "Previous Plasma style saved to $BACKUP"
+  fi
+  rm -rf "$STYLE"; mkdir -p "$STYLE"
+  cp -r "$KIT/plasma/theme/sepia-summit/." "$STYLE/"
+  for spec in widgets/panel-background.svgz:0.62 translucent/widgets/panel-background.svgz:0.62 \
+              dialogs/background.svgz:0.84 translucent/dialogs/background.svgz:0.84; do
+    svg="${spec%%:*}"; alpha="${spec##*:}"
+    [ -f "$BREEZE/$svg" ] || continue
+    mkdir -p "$STYLE/$(dirname "$svg")"
+    zcat "$BREEZE/$svg" | sed "s/opacity:0\.85/opacity:$alpha/g" | gzip -9n > "$STYLE/$svg"
+  done
+  plasma-apply-desktoptheme sepia-summit >/dev/null 2>&1 || c "Couldn't apply the Plasma style automatically."
+
+  # Matching colours for app windows, with a tan accent
+  SCHEMES="$HOME/.local/share/color-schemes"
+  if [ ! -f "$SCHEMES/SepiaSummit.colors" ] && [ -f "$HOME/.config/kdeglobals" ]; then
+    BACKUP="$HOME/.local/share/sepia-summit/backups/pre-colours-$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$BACKUP"
+    cp -p "$HOME/.config/kdeglobals" "$BACKUP/"
+    c "Previous app colours saved to $BACKUP"
+  fi
+  mkdir -p "$SCHEMES"
+  cp "$KIT/plasma/colors/SepiaSummit.colors" "$SCHEMES/"
+  if command -v plasma-apply-colorscheme >/dev/null; then
+    plasma-apply-colorscheme SepiaSummit >/dev/null 2>&1 || true
+  fi
+  if command -v kwriteconfig6 >/dev/null; then
+    kwriteconfig6 --file kdeglobals --group General --key AccentColor "196,160,116"
+    kwriteconfig6 --file kdeglobals --group General --key LastUsedCustomAccentColor "196,160,116"
+    dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notifyChange int32:0 int32:0 2>/dev/null || true
   fi
 fi
 
