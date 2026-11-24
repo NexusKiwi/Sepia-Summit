@@ -59,6 +59,7 @@ If `cava` is missing, the first run offers to layer it with `rpm-ostree`. Say **
 - installs the live wallpaper plugin and starts the audio service (`sepia-cava.service`)
 - copies the wallpapers to `~/Pictures/Wallpapers/sepia-mountains` and sets them **per monitor**. With two screens, the left screen gets the left half and the right screen gets the right half. With an ultrawide, it gets the ultrawide image.
 - replaces your taskbars with the floating dock and app drawer, and hides desktop icons from view (the files stay in `~/Desktop`)
+- sets the lock screen to the sepia mountains (your previous lock screen settings are backed up)
 - applies the sepia Plasma style, app colours and Konsole profile
 
 Your previous settings are saved in `~/.local/share/sepia-summit/backups/`.
@@ -70,11 +71,12 @@ IFACE=enp5s0 DISK=nvme1n1 ./install.sh
 LIVE=0 ./install.sh            # plain static wallpaper, no visualiser
 DOCK=0 ./install.sh            # keep your own panels and desktop icons
 THEME=0 ./install.sh           # keep your Plasma style, colours and Konsole profile
+LOCK=0 ./install.sh            # keep your own lock screen picture
 ```
 
 ## 2. The dock and app drawer
 
-The dock sits at the bottom of the left monitor and holds the drawer button, your open apps and a tray arrow. The grid button or the Meta key opens the drawer. Type to search, and press Enter to launch the first result. The buttons beside the search bar lock, log out, sleep, restart and shut down. Hibernate also appears if your system supports it. Log out, restart and shut down always ask first.
+The dock floats at the bottom of the left monitor and holds the drawer button, your open apps and a tray arrow. It stays out of the way of your windows: it shows on a clear desktop and slips away when a window covers it, so maximised windows fill the whole screen. Push the mouse to the bottom edge under the dock and it floats up over them. The grid button or the Meta key opens the drawer. Type to search, and press Enter to launch the first result. The buttons beside the search bar lock, log out, sleep, restart and shut down. Hibernate also appears if your system supports it. Log out, restart and shut down always ask first.
 
 ## 3. The visualiser behind the mountains
 

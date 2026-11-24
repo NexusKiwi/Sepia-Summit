@@ -42,12 +42,14 @@ from a clean clone was tested on 2026-11-24, starting from the original desktop.
   launches apps in their own scope. It also has a limit of 3 starts a minute: run `reset-failed` first.
 - On a new dock, Plasma overwrites `AppletOrder` while adding widgets, so apply-dock.js runs twice.
 - Set the accent **before** `plasma-apply-colorscheme`, which bakes the current accent into the scheme.
+- Monitors in deep sleep disconnect, and conky exits when its monitor goes away. start-panel.sh stays
+  running as a supervisor that restarts it (matched by `conky -c <config>`, because the AppImage forks).
 - The tray arrow is the `arrow-up-symbolic` icon, so editing the Plasma style's arrows does nothing.
 
 ## Repo layout
 
 ```
-install.sh                    installer (bash, set -euo pipefail; env overrides HEAD IFACE DISK LIVE DOCK THEME)
+install.sh                    installer (bash, set -euo pipefail; env overrides HEAD IFACE DISK LIVE DOCK THEME LOCK)
 conky/sepia.conf              conky Lua config; @HEAD@ @IFACE@ @DISK@ @EXTRA_DRIVES@ filled by install.sh,
                               @S@ replaced at runtime via gsub (scripts path)
 conky/scripts/temps.sh        CPU/NVMe temps found by hwmon *name* (numbering changes between boots)
@@ -90,7 +92,8 @@ docs/                         README images (the panel close-up and live preview
 
 1. **Visualiser placement** — dual screens already use the right monitor only (per-screen
    `Visualiser` setting). Still to add: a choice of which monitor.
-2. **Lock screen** — point the kscreenlocker image at the sepia wallpaper (add to install.sh).
+2. ~~**Lock screen**~~ — done: install.sh points kscreenlocker at the single-screen image (one image for
+   all monitors). Could later use the live plugin there too.
 3. **Login screen** — the owner's machine uses **Plasma Login Manager**: Breeze only, but set its
    wallpaper (maybe even the live plugin). If **SDDM**: a full custom `sepia-summit` SDDM theme.
    Bazzite is immutable, so themes go in a writable location; check the Bazzite docs.

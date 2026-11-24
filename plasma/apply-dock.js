@@ -18,9 +18,12 @@ for (var j = 0; j < ps.length; j++) {
 }
 
 // The dock is only: drawer, open apps, tray. The clock lives on the stats panel.
-var drawer = null, tasks = null, tray = null;
+// A fixed spacer at each end makes it a little wider, and with it the strip
+// along the bottom edge that brings it back up.
+var drawer = null, tasks = null, tray = null, spacers = [];
 dock.widgets().forEach(function (w) {
-    if (w.type === "org.kde.plasma.systemtray" && !tray) tray = w;
+    if (w.type === "org.kde.plasma.panelspacer" && spacers.length < 2) spacers.push(w);
+    else if (w.type === "org.kde.plasma.systemtray" && !tray) tray = w;
     else if (w.type === "com.nexuskiwi.sepiadrawer" && !drawer) drawer = w;
     else if (w.type === "org.kde.plasma.icontasks" && !tasks) tasks = w;
     else w.remove();
@@ -28,6 +31,12 @@ dock.widgets().forEach(function (w) {
 if (!drawer) drawer = dock.addWidget("com.nexuskiwi.sepiadrawer");
 if (!tasks) tasks = dock.addWidget("org.kde.plasma.icontasks");
 if (!tray) tray = dock.addWidget("org.kde.plasma.systemtray");
+while (spacers.length < 2) spacers.push(dock.addWidget("org.kde.plasma.panelspacer"));
+spacers.forEach(function (sp) {
+    sp.currentConfigGroup = ["General"];
+    sp.writeConfig("expanding", false);
+    sp.writeConfig("length", 80);
+});
 
 // Fold every tray icon behind the tray's arrow. install.sh fills in running app icons.
 tray.currentConfigGroup = ["General"];
@@ -47,11 +56,11 @@ tasks.writeConfig("showOnlyCurrentScreen", false);
 tasks.writeConfig("showOnlyCurrentDesktop", false);
 
 dock.currentConfigGroup = ["General"];
-dock.writeConfig("AppletOrder", [drawer.id, tasks.id, tray.id].join(";"));
+dock.writeConfig("AppletOrder", [spacers[0].id, drawer.id, tasks.id, tray.id, spacers[1].id].join(";"));
 dock.location = "bottom";
 dock.height = 52;
 dock.floating = true;
-dock.hiding = "none";
+dock.hiding = "dodgewindows";   // shown until a window covers it; maximised windows fill the screen
 dock.lengthMode = "fit";
 dock.alignment = "center";
 dock.opacity = "translucent";

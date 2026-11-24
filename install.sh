@@ -142,6 +142,36 @@ else
   c "qdbus not found — set the wallpaper by hand from $WPDIR"
 fi
 
+# Lock screen ---------------------------------------------------------------
+# The lock screen shows one image on every monitor, so use the single-screen
+# (or ultrawide) picture sized for the tallest monitor. LOCK=0 skips this.
+if [ "${LOCK:-1}" = "1" ] && command -v kwriteconfig6 >/dev/null; then
+  read -r lw lh < <(kscreen-doctor -o 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk '
+    /^Output:/ { on = 0 } /^[[:space:]]*enabled$/ { on = 1 }
+    /Geometry:/ && on { split($3, wh, "x"); if (wh[2] + 0 > h) { w = wh[1]; h = wh[2] } }
+    END { print w + 0, h + 0 }')
+  tall=1080; [ "${lh:-0}" -gt 1150 ] && tall=1440
+  if [ "${lh:-0}" -gt 0 ] && [ $((lw * 10 / lh)) -ge 22 ]; then
+    LOCKIMG="sepia-mountains_ultrawide_$([ $tall = 1440 ] && echo 3440x1440 || echo 2560x1080).png"
+  else
+    LOCKIMG="sepia-mountains_single_$([ $tall = 1440 ] && echo 2560x1440 || echo 1920x1080).png"
+  fi
+  LOCKRC="$HOME/.config/kscreenlockerrc"
+  if [ -f "$LOCKRC" ] && ! grep -qs sepia-mountains "$LOCKRC"; then
+    BACKUP="$HOME/.local/share/sepia-summit/backups/pre-lock-$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$BACKUP"
+    cp -p "$LOCKRC" "$BACKUP/"
+    c "Previous lock screen settings saved to $BACKUP"
+  fi
+  kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image
+  kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General \
+    --key Image "file://$WPDIR/$LOCKIMG"
+  kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General \
+    --key PreviewImage "file://$WPDIR/$LOCKIMG"
+  kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General \
+    --key FillMode 2
+fi
+
 # Dock and app drawer -------------------------------------------------------
 # Replaces the taskbars with one floating dock on the left monitor and hides
 # desktop icons from view (the files stay). DOCK=0 skips this.
@@ -171,6 +201,16 @@ if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
         || c "Couldn't update the tray arrow."
       sleep 12   # let Plasma save it before the restart
       drawer_changed=1
+    fi
+    # Docks set up before the end spacers and dodge-windows hiding existed
+    if ! grep -q '^plugin=org.kde.plasma.panelspacer$' "$APPLETS"; then
+      for _ in 1 2; do   # twice, as below: the new spacers' order only sticks on the second pass
+        "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(sed "s|@TRAY_ITEMS@||" "$KIT/plasma/apply-dock.js")" >/dev/null \
+          || c "Couldn't update the dock."
+        sleep 12
+        restart_shell
+      done
+      drawer_changed=0
     fi
     [ "$drawer_changed" = 1 ] && restart_shell
   else
@@ -257,9 +297,9 @@ fi
 
 # 7. start it ---------------------------------------------------------------
 if [ -n "$CONKY_BIN" ]; then
-  pkill -f -- "-c $CONF/sepia.conf" 2>/dev/null || true
-  sleep 1
-  "$CONF/scripts/start-panel.sh" "$CONKY_BIN" "$CONF/sepia.conf" "$HEAD"
+  # start-panel.sh replaces any running panel and keeps conky alive, so detach it.
+  setsid -f "$CONF/scripts/start-panel.sh" "$CONKY_BIN" "$CONF/sepia.conf" "$HEAD" \
+    >/dev/null 2>&1 < /dev/null
 fi
 
 c "All done. If the wallpaper shows black, run: systemctl --user restart plasma-plasmashell"
