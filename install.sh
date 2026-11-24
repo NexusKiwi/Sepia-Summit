@@ -225,6 +225,20 @@ if [ "${THEME:-1}" = "1" ] && command -v plasma-apply-desktoptheme >/dev/null; t
     kwriteconfig6 --file kdeglobals --group General --key LastUsedCustomAccentColor "196,160,116"
     dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notifyChange int32:0 int32:0 2>/dev/null || true
   fi
+
+  # Konsole profile, made the default for new windows
+  KONSOLE="$HOME/.local/share/konsole"
+  if [ ! -f "$KONSOLE/SepiaSummit.profile" ] && [ -f "$HOME/.config/konsolerc" ]; then
+    BACKUP="$HOME/.local/share/sepia-summit/backups/pre-konsole-$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$BACKUP"
+    cp -p "$HOME/.config/konsolerc" "$BACKUP/"
+    c "Previous Konsole settings saved to $BACKUP"
+  fi
+  mkdir -p "$KONSOLE"
+  cp "$KIT/konsole/SepiaSummit.profile" "$KIT/konsole/SepiaSummit.colorscheme" "$KONSOLE/"
+  if command -v kwriteconfig6 >/dev/null; then
+    kwriteconfig6 --file konsolerc --group "Desktop Entry" --key DefaultProfile SepiaSummit.profile
+  fi
 fi
 
 # 7. start it ---------------------------------------------------------------
