@@ -60,6 +60,8 @@ WallpaperItem {
                 height: Math.max(0, v) * viz.height * root.maxHeight
                 y: viz.height * root.valleyLine - height
                 radius: width / 2
+                // A rounded gradient bar shorter than its width is a degenerate shape.
+                visible: height >= width
                 gradient: Gradient {
                     GradientStop { position: 0.0; color: Qt.rgba(root.barColor.r, root.barColor.g, root.barColor.b, 1.0) }
                     GradientStop { position: 1.0; color: Qt.rgba(root.barColor.r, root.barColor.g, root.barColor.b, 0.25) }
