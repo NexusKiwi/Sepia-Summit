@@ -29,7 +29,6 @@ cava/config                sepia colours for terminal CAVA
 plasma/wallpaper/          the live wallpaper plugin (com.nexuskiwi.sepiasummit)
 plasma/sepia-cava-server.py  runs CAVA and serves audio levels on 127.0.0.1:37421
 plasma/sepia-cava.service  user service that keeps the server running
-                           (it also hands the wallpaper the weather at /weather)
 plasma/sepia-weather.py    fetches the weather (Open-Meteo, free, no account)
 plasma/sepia-weather.timer refreshes it every 10 minutes
 plasma/set-wallpaper.js    picks the right images for each monitor
@@ -157,7 +156,7 @@ curl -s http://127.0.0.1:37421/ | head -c 80; echo   # should print numbers whil
 ```
 If `cava` isn't found, layer it (`rpm-ostree install cava`) and reboot.
 
-**No weather / "weather unavailable".** Check `sepia-weather fetch` prints no error and `systemctl --user list-timers sepia-weather.timer` shows a next run. The wallpaper gets the weather from the audio service, so `curl -s http://127.0.0.1:37421/weather` should print JSON.
+**No weather / "weather unavailable".** Check `sepia-weather fetch` prints no error and `systemctl --user list-timers sepia-weather.timer` shows a next run. The wallpaper reads `~/.cache/sepia-summit/weather.qml`, which should exist and be recent.
 
 **GPU shows `no nvidia-smi`.** You need the `bazzite-nvidia` image. It ships `nvidia-smi`.
 

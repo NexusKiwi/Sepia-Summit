@@ -11,6 +11,8 @@
 
 Data from Open-Meteo (free, no key). Only the saved coordinates are sent.
 Config: ~/.config/sepia-summit/weather.json   Cache: ~/.cache/sepia-summit/weather.json
+The same data is also written as ~/.cache/sepia-summit/weather.qml for the live wallpaper:
+the lock screen blocks all network access (even 127.0.0.1) but can still load local QML.
 Python standard library only.
 """
 import json, os, sys, time, urllib.parse, urllib.request
@@ -50,6 +52,15 @@ def write_atomic(path, data):
     tmp.replace(path)
 
 
+def save_cache(data):
+    write_atomic(CACHE, data)
+    # JSON is a valid JavaScript literal, and json.dumps escapes every string
+    qml = CACHE.with_suffix(".qml")
+    tmp = qml.with_suffix(".qml.tmp")
+    tmp.write_text("import QtQml\nQtObject { readonly property var data: (" + json.dumps(data) + ") }\n")
+    tmp.replace(qml)
+
+
 def setup(args):
     if len(args) >= 3:
         lat, lon, name = float(args[0]), float(args[1]), " ".join(args[2:])
@@ -81,7 +92,7 @@ def fetch():
     # The code says "partly cloudy" for anything from a few clouds to most of the sky
     if sky == "partly" and cur["cloud_cover"] >= 70:
         sky = "cloudy"
-    write_atomic(CACHE, {
+    save_cache({
         "updated": int(time.time()),
         "place": c["name"], "latitude": c["latitude"], "longitude": c["longitude"],
         "label": label, "sky": sky, "intensity": intensity, "code": cur["weather_code"],
@@ -113,7 +124,7 @@ def preview(args):
     data.update({"label": label + " (preview)", "sky": sky, "intensity": intensity, "code": code,
                  "cloud_cover": cover, "updated": int(time.time()), "preview": True,
                  "sun_elevation": {"day": 40, "dusk": -1, "night": -25}[when]})
-    write_atomic(CACHE, data)
+    save_cache(data)
     print(f"Previewing {sky} at {when}. Run `sepia-weather fetch` to go back to the real weather.")
 
 

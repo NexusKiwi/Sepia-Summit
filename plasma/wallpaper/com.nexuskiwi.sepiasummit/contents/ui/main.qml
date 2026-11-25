@@ -5,12 +5,14 @@
 //   3. audio visualiser bars, their base hidden down in the valley (Baseline)
 //   4. a cut-out of the nearer ridges (the *_front.png), so bars rise from behind them
 //   5. light: overcast dimming, dawn/dusk glow, night; then stars (sky only), fog, rain/snow, lightning
-// Audio levels and the weather (from sepia-weather) both come from sepia-cava-server
-// on 127.0.0.1, because the lock screen can't read files. Day and night follow the real
-// sun position at the weather location, so sunrise, sunset and daylight saving just work.
+// Audio levels come from sepia-cava-server on 127.0.0.1 (the lock screen blocks all network
+// access, so the bars only move on the desktop). The weather is loaded from the QML copy that
+// sepia-weather writes to ~/.cache, which works on the lock screen too. Day and night follow
+// the real sun position at the weather location, so sunrise, sunset and DST just work.
 // With Span on, Background/Foreground are one image for the whole desktop and each
 // monitor shows its own slice of it. The lock screen uses this, because it gives
 // every monitor the same settings. The bars then show on the rightmost monitor only.
+import QtCore
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Particles
@@ -75,6 +77,8 @@ WallpaperItem {
     // wind direction is where it blows FROM: westerlies push clouds to the right
     readonly property int windSign: weatherOn && wx && Math.sin(wx.wind_dir * Math.PI / 180) > 0 ? -1 : 1
     property real drift: 0                       // seconds, advances the clouds
+    // 12 clouds per screen-width of sky (more when one image spans several screens)
+    readonly property int cloudSlots: Math.max(12, Math.round(12 * sliceW / Math.max(1, width)))
 
     function smooth(a, b, v) { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t) }
     function rnd(i, k) { const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x) }
@@ -98,21 +102,22 @@ WallpaperItem {
         else if (wx) elevation = sunElevation(new Date(), wx.latitude, wx.longitude)
         else elevation = 45
     }
-    function fetchWeather() {
-        const xhr = new XMLHttpRequest()
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return
-            if (xhr.status === 200) {
-                try {
-                    const w = JSON.parse(xhr.responseText)
-                    // ignore data more than 2 hours old (laptop asleep, no network...)
-                    root.wx = Date.now() / 1000 - w.updated < 7200 ? w : null
-                } catch (e) { root.wx = null }
+    // A changing query string makes the engine read the file again instead of reusing its cache
+    readonly property string weatherFile: StandardPaths.writableLocation(StandardPaths.GenericCacheLocation) + "/sepia-summit/weather.qml"
+    function fetchWeather() { weatherLoader.source = weatherFile + "?t=" + Date.now() }
+    Loader {
+        id: weatherLoader
+        active: root.weatherOn || root.dayNightOn
+        onStatusChanged: {
+            if (status === Loader.Ready && item && item.data) {
+                // ignore data more than 2 hours old (asleep, no network...)
+                root.wx = Date.now() / 1000 - item.data.updated < 7200 ? item.data : null
+                root.updateSun()
+            } else if (status === Loader.Error) {
+                root.wx = null
+                root.updateSun()
             }
-            root.updateSun()
         }
-        xhr.open("GET", root.endpoint + "weather")
-        xhr.send()
     }
     Timer { interval: 60000; repeat: true; running: true; triggeredOnStart: true; onTriggered: root.fetchWeather() }
     // ~15 fps is plenty for clouds moving a few pixels a second
@@ -189,27 +194,28 @@ WallpaperItem {
         Repeater {
             model: 3
             Image {
-                readonly property real span: root.width + width
+                // laid out across the whole desktop (sliceX/sliceW), so Span mode shows one sky
+                readonly property real span: root.sliceW + width
                 source: "../images/stratus" + (index % 2 + 1) + ".png"
-                width: root.width * (1.1 + 0.3 * root.rnd(index, 7)); height: root.height * 0.2
+                width: root.height * 1.78 * (1.1 + 0.3 * root.rnd(index, 7)); height: root.height * 0.2
                 y: root.height * (0.06 + 0.13 * index)
-                x: ((root.rnd(index, 8) * span + root.windSign * root.drift * root.windPx * 0.5) % span + span) % span - width
+                x: root.sliceX + ((root.rnd(index, 8) * span + root.windSign * root.drift * root.windPx * 0.5) % span + span) % span - width
                 opacity: Math.max(0, root.overcast - 0.2) * 0.8
                 Behavior on opacity { NumberAnimation { duration: 20000 } }
             }
         }
         // puffy clouds: how many depends on the cloud cover
         Repeater {
-            model: 12
+            model: root.cloudSlots
             Image {
                 readonly property real scale0: (0.32 + 0.4 * root.rnd(index, 2)) * root.height / 1440
-                readonly property real span: root.width + width
+                readonly property real span: root.sliceW + width
                 source: "../images/cloud" + (index % 5 + 1) + ".png"
                 width: 1000 * scale0; height: 460 * scale0
                 y: root.height * (0.02 + 0.3 * root.rnd(index, 1))
-                x: ((root.rnd(index, 0) * span + root.windSign * root.drift * root.windPx * (0.7 + 0.6 * root.rnd(index, 3))) % span + span) % span - width
+                x: root.sliceX + ((root.rnd(index, 0) * span + root.windSign * root.drift * root.windPx * (0.7 + 0.6 * root.rnd(index, 3))) % span + span) % span - width
                 // dimmer under a grey deck, so they don't outshine an overcast sky
-                opacity: index < Math.round(root.cover * 12) ? 0.85 - 0.4 * root.overcast : 0
+                opacity: index < Math.round(root.cover * root.cloudSlots) ? 0.85 - 0.4 * root.overcast : 0
                 Behavior on opacity { NumberAnimation { duration: 15000 } }
             }
         }
@@ -295,10 +301,10 @@ WallpaperItem {
         layer.enabled: visible
         layer.effect: MultiEffect { maskEnabled: true; maskSource: skyMask; maskSpreadAtMin: 0.3 }
         Repeater {
-            model: 260
+            model: Math.round(260 * root.sliceW / root.width)
             Rectangle {
                 readonly property real s: 1 + 1.6 * Math.pow(root.rnd(index, 12), 3)
-                x: root.rnd(index, 10) * root.width
+                x: root.sliceX + root.rnd(index, 10) * root.sliceW
                 y: Math.pow(root.rnd(index, 11), 1.4) * root.height * 0.62
                 width: s; height: s; radius: s / 2
                 color: "#fff4dc"

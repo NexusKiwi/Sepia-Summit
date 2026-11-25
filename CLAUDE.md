@@ -18,8 +18,9 @@ owner's (NexusKiwi) PC and shared with friends. It has three parts:
    its levels on `127.0.0.1:37421`. The QML polls that address about 30 times a second.
 4. **Weather + day/night** — `plasma/sepia-weather.py` (stdlib, Open-Meteo, run every 10 min by
    `sepia-weather.timer`) writes `~/.cache/sepia-summit/weather.json`. Conky prints two lines from it
-   under the date; the cava server re-serves it at `/weather`, because the wallpaper also runs on the
-   lock screen where it can't read files. The QML computes the sun's elevation itself from the cached
+   under the date. It also writes `weather.qml` (a QtObject holding the same JSON) that the wallpaper
+   loads with a Loader: the lock screen blocks **all** network access, even 127.0.0.1 (so the audio
+   bars never move there), and XHR can't read files, but loading local QML works. The QML computes the sun's elevation itself from the cached
    lat/lon (so DST/seasons need nothing), draws clouds/overcast inside the `_sky.png` mask (exact,
    from the generator), and light/stars/fog/rain/snow above the ridges. The location lives only in
    `~/.config/sepia-summit/weather.json`, never in the repo (it's public).
@@ -57,6 +58,9 @@ from a clean clone was tested on 2026-11-24, starting from the original desktop.
 - Qt ImageParticle draws every particle as a square of `size`, so sprites must be square (a tall rain
   streak image became bright blobs). Weather effects must stay faint: the owner found bright,
   dense particles painful. Use `sepia-weather preview …` and screenshot, and keep previews short.
+- In Span mode (lock screen) each monitor's wallpaper instance draws only its slice of a shared
+  desktop. Anything spread across the sky (clouds, stars) must be laid out over `sliceX/sliceW`,
+  not `width`, or each monitor shows a copy of the same sky.
 - There is no `qml` runner on the host; test QML by installing and restarting plasmashell.
 
 ## Repo layout
