@@ -3,6 +3,7 @@
 # Safe to re-run. Override detection with env vars, e.g.:
 #   HEAD=0 IFACE=enp5s0 DISK=nvme0n1 ./install.sh
 #   LIVE=0 ./install.sh      # plain static wallpaper, no visualiser behind the ridges
+#   PLACE="Lisbon" ./install.sh   # town for the weather (otherwise asked once)
 set -euo pipefail
 KIT="$(cd "$(dirname "$0")" && pwd)"
 CONF="$HOME/.config/conky/sepia"
@@ -113,6 +114,24 @@ EOF
 mkdir -p "$HOME/.config/cava"
 [ -f "$HOME/.config/cava/config" ] && cp "$HOME/.config/cava/config" "$HOME/.config/cava/config.bak.$(date +%s)"
 cp "$KIT/cava/config" "$HOME/.config/cava/config"
+
+# 4b. weather (conky lines + live wallpaper sky) ------------------------------
+mkdir -p "$HOME/.local/bin" "$HOME/.config/systemd/user"
+install -m 755 "$KIT/plasma/sepia-weather.py" "$HOME/.local/bin/sepia-weather"
+cp "$KIT/plasma/sepia-weather.service" "$KIT/plasma/sepia-weather.timer" "$HOME/.config/systemd/user/"
+WCONF="${XDG_CONFIG_HOME:-$HOME/.config}/sepia-summit/weather.json"
+PLACE="${PLACE:-}"
+if [ -z "$PLACE" ] && [ ! -f "$WCONF" ] && [ -t 0 ]; then
+  read -r -p "Town for the weather and day/night sky (Enter to skip): " PLACE || PLACE=""
+fi
+if [ -n "$PLACE" ]; then
+  "$HOME/.local/bin/sepia-weather" setup "$PLACE" || c "Couldn't look up \"$PLACE\". Later, run: sepia-weather setup \"Your town\""
+fi
+if command -v systemctl >/dev/null; then
+  systemctl --user daemon-reload
+  systemctl --user enable --now sepia-weather.timer
+fi
+[ -f "$WCONF" ] || c "No weather location yet. Run: sepia-weather setup \"Your town\""
 
 # 5. live wallpaper plugin + audio server -----------------------------------
 if [ "$LIVE" = "1" ]; then

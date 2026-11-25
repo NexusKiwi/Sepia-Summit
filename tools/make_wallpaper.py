@@ -75,8 +75,9 @@ def value_noise_2d(rng, w, h, cell):
 
 
 def render(W, H, seed, split=3):
-    """Returns (image, front_mask, valley). front_mask = coverage of layers >= split;
-    valley = lowest point (0..1 from top) of the split layer's ridge."""
+    """Returns (image, front_mask, valley, sky_mask). front_mask = coverage of layers >= split;
+    valley = lowest point (0..1 from top) of the split layer's ridge; sky_mask = 1 where no
+    mountain covers the sky (the live wallpaper draws clouds and stars only there)."""
     rng = np.random.default_rng(seed)
     noise = Noise1D(rng)
     ys = (np.arange(H) / H)[:, None]                     # 0 top .. 1 bottom
@@ -105,6 +106,7 @@ def render(W, H, seed, split=3):
 
     img = sky
     front = np.zeros((H, W))
+    ground = np.zeros((H, W))
     valley = 1.0
 
     # --- mountain layers (back -> front) --------------------------------
@@ -162,6 +164,7 @@ def render(W, H, seed, split=3):
 
         edge = np.clip(dy * H + 0.5, 0, 1)                       # anti-aliased edge
         img = img * (1 - edge) + layer * edge
+        ground = ground + edge * (1 - ground)
         if li >= split:
             front = front + edge * (1 - front)
         if li == split:
@@ -181,7 +184,7 @@ def render(W, H, seed, split=3):
     rgb = gradient_map(img)
     out = Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8), "RGB")
     out = out.filter(ImageFilter.UnsharpMask(radius=1.2, percent=40, threshold=2))
-    return out, front, valley
+    return out, front, valley, 1 - ground
 
 
 def main():
@@ -190,13 +193,25 @@ def main():
     ap.add_argument("--seed", type=int, default=1942)
     ap.add_argument("--only", default=None)
     ap.add_argument("--split", type=int, default=3, help="first mountain layer drawn in front of the visualiser (0=far .. 5=near)")
+    ap.add_argument("--sky-only", action="store_true", help="write only the _sky.png masks, leave the wallpapers alone")
     a = ap.parse_args()
     os.makedirs(a.outdir, exist_ok=True)
     for name, (w, h) in SIZES.items():
         if a.only and a.only not in name:
             continue
-        im, front, valley = render(w, h, a.seed, a.split)
+        im, front, valley, sky = render(w, h, a.seed, a.split)
         p = os.path.join(a.outdir, f"sepia-mountains_{name}.png")
+        # sky mask for the live wallpaper's weather (clouds, stars stay behind the mountains)
+        # (white, alpha = sky) because Qt's MultiEffect masks by alpha
+        sk = Image.merge("LA", (Image.new("L", (w, h), 255),
+                                Image.fromarray((np.clip(sky, 0, 1) * 255).astype(np.uint8), "L")))
+        sk.save(p.replace(".png", "_sky.png"), optimize=True)
+        if name.startswith("dual"):
+            for side, box in (("LEFT", (0, 0, w // 2, h)), ("RIGHT", (w // 2, 0, w, h))):
+                sk.crop(box).save(p.replace(".png", f"_{side}_sky.png"), optimize=True)
+        if a.sky_only:
+            print("wrote", p.replace(".png", "_sky.png"))
+            continue
         im.save(p, optimize=True)
         # cut-out of the nearer ranges, for the live wallpaper's top layer
         fg = im.convert("RGBA")

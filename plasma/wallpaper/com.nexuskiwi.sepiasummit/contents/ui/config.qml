@@ -16,6 +16,8 @@ Kirigami.FormLayout {
     property alias cfg_BarColor: barColor.text
     property alias cfg_Glow: glow.checked
     property alias cfg_Port: port.value
+    property alias cfg_Weather: weather.checked
+    property alias cfg_DayNight: dayNight.checked
 
     QQC2.TextField { id: bg; Kirigami.FormData.label: "Wallpaper image:"; Layout.preferredWidth: Kirigami.Units.gridUnit * 24 }
     QQC2.TextField { id: fg; Kirigami.FormData.label: "Front ridges (cut-out):"; Layout.preferredWidth: Kirigami.Units.gridUnit * 24 }
@@ -30,4 +32,9 @@ Kirigami.FormLayout {
     QQC2.TextField { id: barColor; Kirigami.FormData.label: "Bar colour (hex):"; Layout.preferredWidth: Kirigami.Units.gridUnit * 8 }
     QQC2.CheckBox { id: glow; Kirigami.FormData.label: "Glow:" }
     QQC2.SpinBox { id: port; Kirigami.FormData.label: "Audio server port:"; from: 1024; to: 65535 }
+
+    Item { Kirigami.FormData.isSection: true; Kirigami.FormData.label: "Sky" }
+
+    QQC2.CheckBox { id: weather; Kirigami.FormData.label: "Live weather:"; text: "Clouds, rain, snow, fog (needs sepia-weather)" }
+    QQC2.CheckBox { id: dayNight; Kirigami.FormData.label: "Day and night:"; text: "Follow the sun at the weather location" }
 }

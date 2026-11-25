@@ -12,8 +12,9 @@
 What's included:
 
 - **Wallpaper**: a sepia mountain range generated for this kit. It comes in sizes for dual 1440p, dual 1080p, ultrawide (3440 and 2560) and single screens. All sizes show the same mountains, so the scene carries across both monitors. The tall peaks sit on the left, with calmer sky on the right where the widgets go.
-- **Conky stats panel** (right edge): clock, CPU load/temp/clock speed with 16 per-thread bars, RTX 3070 load/temp/VRAM/power/fan, RAM/swap, drive space, NVMe temps, disk read/write, network and top processes.
+- **Conky stats panel** (right edge): clock, today's weather, CPU load/temp/clock speed with 16 per-thread bars, RTX 3070 load/temp/VRAM/power/fan, RAM/swap, drive space, NVMe temps, disk read/write, network and top processes.
 - **Live wallpaper with the visualiser behind the mountains**: a Plasma 6 wallpaper plugin draws the wallpaper, then full-width audio bars (on the right monitor with two screens), then a cut-out of the nearer ridges on top. The bars look like they're rising out of the valley behind the mountains. When nothing is playing it's just the normal wallpaper.
+- **Live weather and day/night**: clouds drift behind the peaks on cloudy days, the sky greys over when it's overcast, and faint rain, snow or valley fog appear when the real weather does. The scene glows at sunrise and sunset and goes dark and starry at night, following the real sun where you live, so daylight saving and the seasons take care of themselves.
 - **Floating dock and app drawer** (left monitor): the dock shows only your open apps. The drawer sorts everything into Games, Apps and System, with search and lock, log out, sleep, restart and shut down buttons.
 - **Matching theme**: a sepia Plasma style, app colours and Konsole profile.
 
@@ -28,13 +29,18 @@ cava/config                sepia colours for terminal CAVA
 plasma/wallpaper/          the live wallpaper plugin (com.nexuskiwi.sepiasummit)
 plasma/sepia-cava-server.py  runs CAVA and serves audio levels on 127.0.0.1:37421
 plasma/sepia-cava.service  user service that keeps the server running
+                           (it also hands the wallpaper the weather at /weather)
+plasma/sepia-weather.py    fetches the weather (Open-Meteo, free, no account)
+plasma/sepia-weather.timer refreshes it every 10 minutes
 plasma/set-wallpaper.js    picks the right images for each monitor
 plasma/apply-dock.js       sets up the floating dock
 plasma/drawer/             the app drawer widget
 plasma/theme/, plasma/colors/, konsole/   Plasma style, app colours, Konsole profile
 wallpapers/                all the PNGs: dual images come pre-split _LEFT/_RIGHT,
-                           and every image has a _front.png ridge cut-out
+                           and every image has a _front.png ridge cut-out and
+                           a _sky.png mask (where clouds and stars may go)
 tools/make_wallpaper.py    the generator, if you want different mountains
+tools/make_weather_assets.py  draws the clouds, rain and snow sprites
 ```
 
 ---
@@ -56,6 +62,7 @@ If `cava` is missing, the first run offers to layer it with `rpm-ostree`. Say **
 
 - detects your network adapter, main drive, any extra drives mounted under `/run/media` or `/var/mnt` (game drives etc.), and how many monitors you have
 - installs the conky panel and adds it to autostart
+- asks for your nearest town once, for the weather and the day/night sky (a town is enough; only its coordinates are sent to Open-Meteo)
 - installs the live wallpaper plugin and starts the audio service (`sepia-cava.service`)
 - copies the wallpapers to `~/Pictures/Wallpapers/sepia-mountains` and sets them **per monitor**. With two screens, the left screen gets the left half and the right screen gets the right half. With an ultrawide, it gets the ultrawide image.
 - replaces your taskbars with the floating dock and app drawer, and hides desktop icons from view (the files stay in `~/Desktop`)
@@ -72,6 +79,7 @@ LIVE=0 ./install.sh            # plain static wallpaper, no visualiser
 DOCK=0 ./install.sh            # keep your own panels and desktop icons
 THEME=0 ./install.sh           # keep your Plasma style, colours and Konsole profile
 LOCK=0 ./install.sh            # keep your own lock screen picture
+PLACE="Lisbon" ./install.sh    # set or change the weather town without being asked
 ```
 
 ## 2. The dock and app drawer
@@ -102,17 +110,30 @@ python3 tools/make_wallpaper.py wallpapers --split 2
 
 You can still add the **Kurve** widget for a small visualiser somewhere else. Find it under Add Widgets → Get New Widgets and search "Kurve".
 
-## 4. Optional finishing touches
+## 4. Weather and day/night
+
+`sepia-weather` fetches the current weather every 10 minutes (`sepia-weather.timer`). Conky shows it under the date, and the live wallpaper turns it into the sky: clouds for cloud cover, a grey deck when it's overcast, faint rain, snow, valley fog, and a soft glow for thunderstorms. Day and night follow the sun's real position at your town.
+
+```bash
+sepia-weather setup "Your town"     # change the location
+sepia-weather preview rain night    # try a look: clear partly cloudy overcast fog drizzle
+                                    #   rain showers snow storm, at day / dusk / night
+sepia-weather fetch                 # back to the real weather
+```
+
+Both parts can be switched off per screen in the wallpaper settings (Desktop → Configure → Sky).
+
+## 5. Optional finishing touches
 
 The installer already applies the Plasma style, app colours and Konsole profile. Two extras you can set by hand:
 
 - **Window decorations**: Breeze with "No borders" gives a cleaner look for screenshots.
 - **Font**: for a vintage feel, set the window title font to *Noto Serif*.
 
-## 5. Customising
+## 6. Customising
 
 - **Different CPU?** The panel shows 16 per-thread bars (a Ryzen 7 5800X). For a different thread count, add or remove `${cpubar cpuN 3,34}` entries in the PROCESSOR section. The GPU section needs an NVIDIA card (it uses `nvidia-smi`).
-- **Panel layout/colours**: edit `~/.config/conky/sepia/sepia.conf`. Conky reloads by itself when you save. The colours are `color1`–`color4` near the top. Panel opacity and corner radius are `ALPHA` and `RADIUS` at the top of `~/.config/conky/sepia/scripts/panel.lua`.
+- **Panel layout/colours**: edit `~/.config/conky/sepia/sepia.conf`. Conky reloads by itself when you save, but on Wayland the reloaded panel can open on the wrong monitor; log out and in (or re-run the autostart command) to put it back. The colours are `color1`–`color4` near the top. Panel opacity and corner radius are `ALPHA` and `RADIUS` at the top of `~/.config/conky/sepia/scripts/panel.lua`.
 - **Different mountains**: change the seed. This needs numpy and pillow; on Bazzite, run it in a distrobox:
   ```bash
   python3 tools/make_wallpaper.py wallpapers --seed 7
@@ -135,6 +156,8 @@ systemctl --user status sepia-cava
 curl -s http://127.0.0.1:37421/ | head -c 80; echo   # should print numbers while music plays
 ```
 If `cava` isn't found, layer it (`rpm-ostree install cava`) and reboot.
+
+**No weather / "weather unavailable".** Check `sepia-weather fetch` prints no error and `systemctl --user list-timers sepia-weather.timer` shows a next run. The wallpaper gets the weather from the audio service, so `curl -s http://127.0.0.1:37421/weather` should print JSON.
 
 **GPU shows `no nvidia-smi`.** You need the `bazzite-nvidia` image. It ships `nvidia-smi`.
 

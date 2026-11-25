@@ -16,6 +16,13 @@ owner's (NexusKiwi) PC and shared with friends. It has three parts:
    visualiser rises from the valley behind the mountains. A small local service
    (`plasma/sepia-cava-server.py`, run by `sepia-cava.service`) runs CAVA and serves
    its levels on `127.0.0.1:37421`. The QML polls that address about 30 times a second.
+4. **Weather + day/night** — `plasma/sepia-weather.py` (stdlib, Open-Meteo, run every 10 min by
+   `sepia-weather.timer`) writes `~/.cache/sepia-summit/weather.json`. Conky prints two lines from it
+   under the date; the cava server re-serves it at `/weather`, because the wallpaper also runs on the
+   lock screen where it can't read files. The QML computes the sun's elevation itself from the cached
+   lat/lon (so DST/seasons need nothing), draws clouds/overcast inside the `_sky.png` mask (exact,
+   from the generator), and light/stars/fog/rain/snow above the ridges. The location lives only in
+   `~/.config/sepia-summit/weather.json`, never in the repo (it's public).
 
 `install.sh` sets up everything and is safe to re-run. `README.md` is the user-facing doc.
 
@@ -45,11 +52,17 @@ from a clean clone was tested on 2026-11-24, starting from the original desktop.
 - Monitors in deep sleep disconnect, and conky exits when its monitor goes away. start-panel.sh stays
   running as a supervisor that restarts it (matched by `conky -c <config>`, because the AppImage forks).
 - The tray arrow is the `arrow-up-symbolic` icon, so editing the Plasma style's arrows does nothing.
+- Editing the live conky config makes conky reload, and on Wayland the reloaded surface opens on
+  the *active* monitor. Re-run start-panel.sh afterwards (via `systemd-run --user`) to put it back.
+- Qt ImageParticle draws every particle as a square of `size`, so sprites must be square (a tall rain
+  streak image became bright blobs). Weather effects must stay faint: the owner found bright,
+  dense particles painful. Use `sepia-weather preview …` and screenshot, and keep previews short.
+- There is no `qml` runner on the host; test QML by installing and restarting plasmashell.
 
 ## Repo layout
 
 ```
-install.sh                    installer (bash, set -euo pipefail; env overrides HEAD IFACE DISK LIVE DOCK THEME LOCK)
+install.sh                    installer (bash, set -euo pipefail; env overrides HEAD IFACE DISK LIVE DOCK THEME LOCK PLACE)
 conky/sepia.conf              conky Lua config; @HEAD@ @IFACE@ @DISK@ @EXTRA_DRIVES@ filled by install.sh,
                               @S@ replaced at runtime via gsub (scripts path)
 conky/scripts/temps.sh        CPU/NVMe temps found by hwmon *name* (numbering changes between boots)
@@ -65,8 +78,12 @@ plasma/drawer/…/              app drawer plasmoid (contents/code/sepia-drawer.
 plasma/theme/sepia-summit/    Plasma style (install.sh tints Breeze's panel and dialog artwork)
 plasma/colors/                app colour scheme
 konsole/                      Konsole profile and colour scheme
-tools/make_wallpaper.py       generator (numpy + Pillow). --seed, --split, --only
-wallpapers/                   generated PNGs (+ _LEFT/_RIGHT halves for dual, + _front cut-outs)
+plasma/sepia-weather.py       weather fetcher + conky lines + `preview` (installed as ~/.local/bin/sepia-weather)
+plasma/sepia-weather.{service,timer}  10-minute refresh
+tools/make_wallpaper.py       generator (numpy + Pillow). --seed, --split, --only, --sky-only (masks only)
+tools/make_weather_assets.py  cloud/stratus/rain/snow/veil sprites → plasma/wallpaper/…/contents/images
+wallpapers/                   generated PNGs (+ _LEFT/_RIGHT halves for dual, + _front cut-outs,
+                              + _sky masks: white with alpha = open sky, because MultiEffect masks by alpha)
 docs/                         README images (the panel close-up and live preview are MOCK-UPS)
 ```
 
