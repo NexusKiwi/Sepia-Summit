@@ -5,9 +5,11 @@
   sepia-weather setup LAT LON NAME   save coordinates directly
   sepia-weather fetch                download current weather into the cache
   sepia-weather conky now|details    one line of text for the conky panel
-  sepia-weather preview SKY [TIME]   pretend it's SKY (clear partly cloudy overcast fog
-                                     drizzle rain showers snow storm) at TIME (day dusk night)
-                                     until the next fetch; for trying out the wallpaper
+  sepia-weather preview SKY [TIME] [SEASON] [wind=KMH] [temp=C] [snow=CM]
+                                     pretend it's SKY (clear partly cloudy overcast fog drizzle
+                                     rain showers snow storm) at TIME (day dusk night) in SEASON
+                                     (summer autumn winter spring) until the next fetch; for
+                                     trying out the wallpaper
 
 Data from Open-Meteo (free, no key). Only the saved coordinates are sent.
 Config: ~/.config/sepia-summit/weather.json   Cache: ~/.cache/sepia-summit/weather.json
@@ -85,9 +87,13 @@ def fetch():
         "latitude": c["latitude"], "longitude": c["longitude"], "timezone": "auto", "forecast_days": 2,
         "current": "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,cloud_cover,"
                    "wind_speed_10m,wind_direction_10m,precipitation,is_day",
-        "daily": "temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max",
+        "daily": "temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,snowfall_sum",
+        "past_days": 3,
     })
     cur, day = d["current"], d["daily"]
+    t = day["time"].index(cur["time"][:10]) if cur["time"][:10] in day["time"] else 0     # today
+    # recent snow (cm), older days counting less: lowers the wallpaper's snowline, then melts back
+    snow_cm = sum((day["snowfall_sum"][t - k] or 0) * w for k, w in enumerate((1, 0.7, 0.45, 0.25)) if t - k >= 0)
     label, sky, intensity = CODES.get(cur["weather_code"], ("—", "clear", 0))
     # The code says "partly cloudy" for anything from a few clouds to most of the sky
     if sky == "partly" and cur["cloud_cover"] >= 70:
@@ -100,18 +106,28 @@ def fetch():
         "humidity": cur["relative_humidity_2m"], "cloud_cover": cur["cloud_cover"],
         "precip_mm": cur["precipitation"], "wind_kmh": cur["wind_speed_10m"], "wind_dir": cur["wind_direction_10m"],
         "is_day": cur["is_day"],
-        "max": day["temperature_2m_max"][0], "min": day["temperature_2m_min"][0],
-        "rain_chance": day["precipitation_probability_max"][0],
-        "sunrise": day["sunrise"][0][-5:], "sunset": day["sunset"][0][-5:],
+        "max": day["temperature_2m_max"][t], "min": day["temperature_2m_min"][t],
+        "rain_chance": day["precipitation_probability_max"][t], "snow_cm": round(snow_cm, 1),
+        "sunrise": day["sunrise"][t][-5:], "sunset": day["sunset"][t][-5:],
     })
 
 
 def preview(args):
     sky = args[0] if args else "rain"
-    when = args[1] if len(args) > 1 else "day"
+    when, season, extra = "day", None, {}
+    for a in args[1:]:
+        if a in ("day", "dusk", "night"):
+            when = a
+        elif a in ("summer", "autumn", "winter", "spring"):
+            season = a
+        elif "=" in a and a.split("=")[0] in ("wind", "temp", "snow"):
+            k, v = a.split("=", 1)
+            extra[{"wind": "wind_kmh", "temp": "temp", "snow": "snow_cm"}[k]] = float(v)
+        else:
+            sys.exit(__doc__)
     skies = {"clear": (0, 0), "partly": (2, 35), "cloudy": (2, 75), "overcast": (3, 95), "fog": (45, 100),
              "drizzle": (53, 90), "rain": (63, 95), "showers": (81, 80), "snow": (73, 95), "storm": (95, 100)}
-    if sky not in skies or when not in ("day", "dusk", "night"):
+    if sky not in skies:
         sys.exit(__doc__)
     code, cover = skies[sky]
     try:
@@ -124,8 +140,12 @@ def preview(args):
     data.update({"label": label + " (preview)", "sky": sky, "intensity": intensity, "code": code,
                  "cloud_cover": cover, "updated": int(time.time()), "preview": True,
                  "sun_elevation": {"day": 40, "dusk": -1, "night": -25}[when]})
+    data.pop("season", None)
+    if season:
+        data["season"] = season
+    data.update(extra)
     save_cache(data)
-    print(f"Previewing {sky} at {when}. Run `sepia-weather fetch` to go back to the real weather.")
+    print(f"Previewing {sky} at {when}{' in ' + season if season else ''}. Run `sepia-weather fetch` to go back to the real weather.")
 
 
 def conky(what):

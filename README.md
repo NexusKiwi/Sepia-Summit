@@ -15,6 +15,7 @@ What's included:
 - **Conky stats panel** (right edge): clock, today's weather, CPU load/temp/clock speed with 16 per-thread bars, RTX 3070 load/temp/VRAM/power/fan, RAM/swap, drive space, NVMe temps, disk read/write, network and top processes.
 - **Live wallpaper with the visualiser behind the mountains**: a Plasma 6 wallpaper plugin draws the wallpaper, then full-width audio bars (on the right monitor with two screens), then a cut-out of the nearer ridges on top. The bars look like they're rising out of the valley behind the mountains. When nothing is playing it's just the normal wallpaper.
 - **Live weather and day/night**: clouds drift behind the peaks on cloudy days, the sky greys over when it's overcast, and faint rain, snow or valley fog appear when the real weather does. The scene glows at sunrise and sunset and goes dark and starry at night, following the real sun where you live, so daylight saving and the seasons take care of themselves.
+- **Seasons**: the snowline creeps down the peaks through winter (and after real snowfall), trees on the foothills fill out in summer, thin and lighten in autumn, go bare in winter and blossom in spring. Fireflies drift over the hills on warm summer nights, leaves blow past on windy autumn days, snow streams off the peaks in a gale, mist drifts through the valleys, and the moon rises with its real phase.
 - **Floating dock and app drawer** (left monitor): the dock shows only your open apps. The drawer sorts everything into Games, Apps and System, with search and lock, log out, sleep, restart and shut down buttons.
 - **Matching theme**: a sepia Plasma style, app colours and Konsole profile.
 
@@ -37,9 +38,11 @@ plasma/drawer/             the app drawer widget
 plasma/theme/, plasma/colors/, konsole/   Plasma style, app colours, Konsole profile
 wallpapers/                all the PNGs: dual images come pre-split _LEFT/_RIGHT,
                            and every image has a _front.png ridge cut-out and
-                           a _sky.png mask (where clouds and stars may go)
+                           a _sky.png mask (where clouds and stars may go) and
+                           a _snow.png map (where snow settles first)
 tools/make_wallpaper.py    the generator, if you want different mountains
-tools/make_weather_assets.py  draws the clouds, rain and snow sprites
+                           (it also writes the tree positions, contents/code/scene.js)
+tools/make_weather_assets.py  draws the clouds, rain, snow, tree and leaf sprites
 ```
 
 ---
@@ -117,10 +120,14 @@ You can still add the **Kurve** widget for a small visualiser somewhere else. Fi
 sepia-weather setup "Your town"     # change the location
 sepia-weather preview rain night    # try a look: clear partly cloudy overcast fog drizzle
                                     #   rain showers snow storm, at day / dusk / night
+sepia-weather preview clear night summer temp=19      # fireflies
+sepia-weather preview overcast day winter wind=45 snow=6   # deep snow blowing off the peaks
 sepia-weather fetch                 # back to the real weather
 ```
 
-Both parts can be switched off per screen in the wallpaper settings (Desktop → Configure → Sky).
+The seasons follow the date and your hemisphere: summer is December to February south of the equator and June to August north of it. Recent snowfall at your town pulls the snowline lower for a few days.
+
+Weather, day/night and seasons can each be switched off per screen in the wallpaper settings (Desktop → Configure → Sky).
 
 ## 5. Optional finishing touches
 

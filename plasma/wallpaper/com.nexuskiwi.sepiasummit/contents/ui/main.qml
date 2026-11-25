@@ -4,7 +4,10 @@
 //   2. weather in the sky (clouds, overcast haze), masked by *_sky.png so it stays behind the peaks
 //   3. audio visualiser bars, their base hidden down in the valley (Baseline)
 //   4. a cut-out of the nearer ridges (the *_front.png), so bars rise from behind them
-//   5. light: overcast dimming, dawn/dusk glow, night; then stars (sky only), fog, rain/snow, lightning
+//   3a. seasonal snow on the far peaks: the wallpaper brightened, through *_snow.png with a moving threshold
+//   4a. valley mist, then trees on the nearer hills (positions from ../code/scene.js), swaying in the wind
+//   5. light: overcast dimming, dawn/dusk glow, night; then moon and stars (sky only), fog, rain/snow,
+//      lightning, and the seasonal particles (fireflies, autumn leaves, pollen, snow blowing off peaks)
 // Audio levels come from sepia-cava-server on 127.0.0.1 (the lock screen blocks all network
 // access, so the bars only move on the desktop). The weather is loaded from the QML copy that
 // sepia-weather writes to ~/.cache, which works on the lock screen too. Day and night follow
@@ -18,6 +21,7 @@ import QtQuick.Effects
 import QtQuick.Particles
 import QtQuick.Window
 import org.kde.plasma.plasmoid
+import "../code/scene.js" as Scene
 
 WallpaperItem {
     id: root
@@ -34,7 +38,9 @@ WallpaperItem {
     readonly property string endpoint: "http://127.0.0.1:" + (configuration.Port || 37421) + "/"
     readonly property bool weatherOn: configuration.Weather !== false
     readonly property bool dayNightOn: configuration.DayNight !== false
+    readonly property bool seasonsOn: configuration.Seasons !== false
     readonly property string skySource: bgSource.replace(/\.png$/, "_sky.png")
+    readonly property string snowSource: bgSource.replace(/\.png$/, "_snow.png")
 
     // The desktop's extent, from every monitor's position (logical pixels).
     readonly property bool span: configuration.Span === true
@@ -76,7 +82,45 @@ WallpaperItem {
     readonly property real windPx: (4 + (weatherOn && wx ? wx.wind_kmh : 8) * 0.6) * height / 1440
     // wind direction is where it blows FROM: westerlies push clouds to the right
     readonly property int windSign: weatherOn && wx && Math.sin(wx.wind_dir * Math.PI / 180) > 0 ? -1 : 1
-    property real drift: 0                       // seconds, advances the clouds
+    property real drift: 0                       // seconds, advances clouds, mist and tree sway
+    readonly property real wind: weatherOn && wx ? wx.wind_kmh : 8
+    readonly property real temp: wx ? wx.temp : 15
+
+    // ---- seasons ---------------------------------------------------------------
+    // yearPhase 0 = midsummer (mid-January south of the equator, mid-July north), 0.5 = midwinter.
+    // seasonPos 0 summer, 1 autumn, 2 winter, 3 spring, blending between neighbours.
+    property real yearPhase: 0
+    readonly property real seasonPos: yearPhase * 4
+    readonly property int seasonA: Math.floor(seasonPos) % 4
+    readonly property int seasonB: (seasonA + 1) % 4
+    readonly property real seasonF: smooth(0.3, 0.7, seasonPos - Math.floor(seasonPos))
+    function seasonWeight(k) { const d = Math.abs(seasonPos - k) % 4; return Math.max(0, 1 - Math.min(d, 4 - d)) }
+    readonly property real winterness: (1 - Math.cos(2 * Math.PI * yearPhase)) / 2
+    // how far down the snow reaches (0 none .. 1 everything): season, then recent and falling snow
+    readonly property real snowAmount: !seasonsOn ? 0 : Math.min(0.95, 0.2 + 0.4 * Math.pow(winterness, 1.5)
+        + (weatherOn && wx ? Math.min(0.3, (wx.snow_cm || 0) * 0.03) + (snowing ? 0.15 + 0.1 * intensity : 0) : 0))
+    property real snowShown: snowAmount
+    Behavior on snowShown { NumberAnimation { duration: 30000 } }
+    readonly property real treeSnow: smooth(0.62, 0.8, snowShown)
+    readonly property bool dry: !wet && !snowing && !foggy
+    readonly property real fireflies: !seasonsOn ? 0 : Math.min(1, seasonWeight(0) * 1.5 + seasonWeight(3) * 0.4)
+        * smooth(0.5, 0.9, night) * smooth(11, 14, temp) * (dry ? 1 : 0) * (wind < 25 ? 1 : 0)
+    readonly property real leaves: !seasonsOn ? 0 : Math.min(1, seasonWeight(1) * 1.6) * smooth(10, 30, wind)
+        * (wet || snowing ? 0.4 : 1) * (1 - 0.7 * night)
+    readonly property real pollen: !seasonsOn ? 0 : Math.min(1, seasonWeight(3) * 1.5) * (1 - night)
+        * (dry && wind < 20 ? 1 : 0)
+    readonly property real blowSnow: seasonsOn && weatherOn ? smooth(22, 45, wind) * smooth(0.3, 0.5, snowShown) : 0
+    readonly property real mist: !(weatherOn && wx) || foggy ? 0 : Math.max(smooth(82, 98, wx.humidity) * 0.7,
+        elevation > -3 && elevation < 10 && temp < 13 ? 0.5 : 0)
+    function updateSeason() {
+        const names = ["summer", "autumn", "winter", "spring"]
+        if (wx && wx.season && names.indexOf(wx.season) >= 0) { yearPhase = names.indexOf(wx.season) / 4; return }
+        const d = new Date()
+        const doy = (d - new Date(d.getFullYear(), 0, 1)) / 86400000
+        // a few weeks after the solstice, when it's actually warmest
+        const mid = wx && wx.latitude < 0 ? 15 : 196
+        yearPhase = (((doy - mid) / 365.25) % 1 + 1) % 1
+    }
     // 12 clouds per screen-width of sky (more when one image spans several screens)
     readonly property int cloudSlots: Math.max(12, Math.round(12 * sliceW / Math.max(1, width)))
 
@@ -101,6 +145,27 @@ WallpaperItem {
         if (wx && wx.sun_elevation !== undefined) elevation = wx.sun_elevation       // preview mode
         else if (wx) elevation = sunElevation(new Date(), wx.latitude, wx.longitude)
         else elevation = 45
+        updateSeason()
+        moon = wx ? moonInfo(new Date(), wx.latitude, wx.longitude) : moon
+    }
+
+    // Moon position and phase (low precision, plenty for a wallpaper)
+    property var moon: ({ alt: -90, ha: 0, frac: 0.5, waxing: true })
+    function moonInfo(date, lat, lon) {
+        const r = Math.PI / 180
+        const d = date.getTime() / 86400000 - 10957.5
+        const L = 218.316 + 13.176396 * d, M = (134.963 + 13.064993 * d) * r, F = (93.272 + 13.229350 * d) * r
+        const elon = (L + 6.289 * Math.sin(M)) * r, elat = 5.128 * Math.sin(F) * r
+        const e = 23.439 * r
+        const ra = Math.atan2(Math.sin(elon) * Math.cos(e) - Math.tan(elat) * Math.sin(e), Math.cos(elon))
+        const dec = Math.asin(Math.sin(elat) * Math.cos(e) + Math.cos(elat) * Math.sin(e) * Math.sin(elon))
+        const gmst = ((18.697374558 + 24.06570982441908 * d) % 24) * 15 * r
+        const ha = Math.atan2(Math.sin(gmst + lon * r - ra), Math.cos(gmst + lon * r - ra))
+        const alt = Math.asin(Math.sin(lat * r) * Math.sin(dec) + Math.cos(lat * r) * Math.cos(dec) * Math.cos(ha)) / r
+        const g = (357.529 + 0.98560028 * d) * r
+        const sunLon = (280.459 + 0.98564736 * d + 1.915 * Math.sin(g)) * r
+        const el = elon - sunLon
+        return { alt: alt, ha: ha, frac: (1 - Math.cos(el)) / 2, waxing: Math.sin(el) > 0 }
     }
     // A changing query string makes the engine read the file again instead of reusing its cache
     readonly property string weatherFile: StandardPaths.writableLocation(StandardPaths.GenericCacheLocation) + "/sepia-summit/weather.qml"
@@ -108,12 +173,16 @@ WallpaperItem {
     Loader {
         id: weatherLoader
         active: root.weatherOn || root.dayNightOn
-        onStatusChanged: {
-            if (status === Loader.Ready && item && item.data) {
+        // loaded fires on every reload; status would stay Ready and never signal a change
+        onLoaded: {
+            if (item && item.data) {
                 // ignore data more than 2 hours old (asleep, no network...)
                 root.wx = Date.now() / 1000 - item.data.updated < 7200 ? item.data : null
                 root.updateSun()
-            } else if (status === Loader.Error) {
+            }
+        }
+        onStatusChanged: {
+            if (status === Loader.Error) {
                 root.wx = null
                 root.updateSun()
             }
@@ -121,17 +190,33 @@ WallpaperItem {
     }
     Timer { interval: 60000; repeat: true; running: true; triggeredOnStart: true; onTriggered: root.fetchWeather() }
     // ~15 fps is plenty for clouds moving a few pixels a second
-    Timer { interval: 66; repeat: true; running: root.weatherOn && root.cover > 0; onTriggered: root.drift += 0.066 }
+    Timer {
+        interval: 66; repeat: true
+        running: root.weatherOn && root.cover > 0 || root.mist > 0 || root.seasonsOn && root.shownTrees.length > 0
+        onTriggered: root.drift += 0.066
+    }
 
-    // Where the painted sun is, in this item's coordinates (sun_x/sun_y from make_wallpaper.py)
-    readonly property point sunPos: {
+    // World units (make_wallpaper.py: 1 = image height, x = 0 at the centre of the full image)
+    // to this item's coordinates: x = x0 + wx * s, y = y0 + wy * s
+    readonly property var map: {
         const iw = bgImage.sourceSize.width, ih = bgImage.sourceSize.height
-        if (!iw || !ih) return Qt.point(-9999, -9999)
+        if (!iw || !ih) return { x0: -99999, y0: 0, s: 1 }
         const left = bgSource.indexOf("_LEFT") >= 0, right = bgSource.indexOf("_RIGHT") >= 0
         const world = left || right ? iw * 2 : iw
-        const sx = world / 2 - 0.78 * ih - (right ? iw : 0), sy = 0.40 * ih
         const scale = Math.max(sliceW / iw, height / ih)
-        return Qt.point(sliceX + (sliceW - iw * scale) / 2 + sx * scale, (height - ih * scale) / 2 + sy * scale)
+        return { x0: sliceX + (sliceW - iw * scale) / 2 + (world / 2 - (right ? iw : 0)) * scale,
+                 y0: (height - ih * scale) / 2, s: ih * scale }
+    }
+    // Where the painted sun is (sun_x/sun_y from make_wallpaper.py)
+    readonly property point sunPos: Qt.point(map.x0 - 0.78 * map.s, map.y0 + 0.40 * map.s)
+    // trees on this screen only
+    readonly property var shownTrees: {
+        const out = [], m = map
+        for (let i = 0; i < Scene.trees.length; i++) {
+            const t = Scene.trees[i], x = m.x0 + t[0] * m.s
+            if (x > -80 && x < width + 80) out.push(t)
+        }
+        return out
     }
 
     // The sky mask, laid out exactly like the wallpaper image, used as an alpha mask
@@ -169,7 +254,9 @@ WallpaperItem {
         layer.effect: MultiEffect {
             maskEnabled: true
             maskSource: skyMask
-            maskSpreadAtMin: 0.3
+            // the spread is centred on the threshold, so threshold 0 would let half show through the peaks
+            maskThresholdMin: 0.5
+            maskSpreadAtMin: 0.2
         }
 
         // grey cloud deck
@@ -221,6 +308,28 @@ WallpaperItem {
         }
     }
 
+    // ---- seasonal snow on the far peaks -------------------------------------------
+    // The wallpaper itself, brightened, shown where the snow level (alpha of *_snow.png) is above
+    // 1 - snowShown, so the painted light and shade carry through onto the snow.
+    Item {
+        id: snowMask
+        x: root.sliceX; width: root.sliceW; height: parent.height
+        visible: false
+        layer.enabled: true
+        Image { anchors.fill: parent; source: root.seasonsOn ? root.snowSource : ""; fillMode: Image.PreserveAspectCrop; smooth: true }
+    }
+    MultiEffect {
+        x: bgImage.x; width: bgImage.width; height: bgImage.height
+        source: bgImage
+        visible: root.seasonsOn && root.snowShown > 0.02
+        brightness: 0.22
+        maskEnabled: true
+        maskSource: snowMask
+        maskThresholdMin: 1 - root.snowShown
+        maskSpreadAtMin: 0.35
+        opacity: 0.65
+    }
+
     Item {
         id: viz
         anchors.fill: parent
@@ -265,6 +374,75 @@ WallpaperItem {
         smooth: true
     }
 
+    // ---- valley mist, drifting with the wind ----------------------------------------
+    Item {
+        anchors.fill: parent
+        opacity: root.mist
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 20000 } }
+        Repeater {
+            model: 4
+            Image {
+                readonly property real span: root.sliceW + width
+                source: "../images/stratus" + (index % 2 + 1) + ".png"
+                width: root.height * 1.6; height: root.height * 0.12
+                y: root.height * (0.62 + 0.07 * index)
+                x: root.sliceX + ((root.rnd(index, 30) * span + root.windSign * root.drift * root.windPx * 0.35) % span + span) % span - width
+                opacity: 0.32 - 0.04 * index
+            }
+        }
+    }
+
+    // ---- trees on the nearer hills -----------------------------------------------------
+    // Sprite sheet ../images/trees.png: row = hill (layer 3, 4, 5), 128 px cells. Columns: 0-1
+    // conifers, 2-3 the same with snow, then per deciduous tree: summer, autumn, winter, spring.
+    Item {
+        anchors.fill: parent
+        visible: root.seasonsOn
+        Repeater {
+            model: root.seasonsOn ? root.shownTrees : []
+            Item {
+                id: tree
+                required property var modelData
+                required property int index
+                readonly property bool conifer: modelData[4] === 0
+                readonly property int row: modelData[3] - 3
+                readonly property int colA: conifer ? modelData[5] : 4 + modelData[5] * 4 + root.seasonA
+                readonly property int colB: conifer ? modelData[5] + 2 : 4 + modelData[5] * 4 + root.seasonB
+                readonly property real mix: conifer ? root.treeSnow : root.seasonF
+                readonly property real r: root.rnd(modelData[0] * 1000, 40)
+                width: modelData[2] * root.map.s / 0.94; height: width
+                x: root.map.x0 + modelData[0] * root.map.s - width / 2
+                y: root.map.y0 + modelData[1] * root.map.s - height
+                // lean away from the wind and sway around that, conifers stiffer
+                transform: [
+                    Scale { origin.x: tree.width / 2; xScale: tree.modelData[6] ? -1 : 1 },
+                    Rotation {
+                        origin.x: tree.width / 2; origin.y: tree.height
+                        angle: (tree.conifer ? 0.6 : 1) * (root.windSign * Math.min(5, root.wind * 0.08) * (0.7 + 0.3 * tree.r)
+                               + Math.min(2.5, 0.3 + root.wind * 0.035) * Math.sin(root.drift * (1.1 + 0.6 * tree.r) + tree.r * 40))
+                    }
+                ]
+                Image {
+                    anchors.fill: parent
+                    source: "../images/trees.png"
+                    sourceClipRect: Qt.rect(tree.colA * 128, tree.row * 128, 128, 128)
+                    opacity: 1 - tree.mix
+                    visible: opacity > 0.01
+                    smooth: true; mipmap: true
+                }
+                Image {
+                    anchors.fill: parent
+                    source: "../images/trees.png"
+                    sourceClipRect: Qt.rect(tree.colB * 128, tree.row * 128, 128, 128)
+                    opacity: tree.mix
+                    visible: opacity > 0.01
+                    smooth: true; mipmap: true
+                }
+            }
+        }
+    }
+
     // ---- light ------------------------------------------------------------------
     Rectangle {                                         // grey day
         anchors.fill: parent
@@ -299,7 +477,85 @@ WallpaperItem {
         opacity: root.night * Math.max(0, 1 - root.cover * 1.1) * (root.foggy ? 0 : 1)
         Behavior on opacity { NumberAnimation { duration: 5000 } }
         layer.enabled: visible
-        layer.effect: MultiEffect { maskEnabled: true; maskSource: skyMask; maskSpreadAtMin: 0.3 }
+        layer.effect: MultiEffect { maskEnabled: true; maskSource: skyMask; maskThresholdMin: 0.5; maskSpreadAtMin: 0.2 }
+        // the moon, where it really is: phase and height from the date; east is on the right
+        // south of the equator (looking north) and on the left north of it
+        Item {
+            id: moonItem
+            readonly property real rad: root.map.s * 0.016
+            readonly property real side: root.wx && root.wx.latitude < 0 ? -1 : 1
+            visible: root.moon.alt > -2
+            width: rad * 2; height: rad * 2
+            x: root.map.x0 + Math.max(-1.7, Math.min(1.7, side * 1.6 * Math.sin(root.moon.ha))) * root.map.s - rad
+            y: root.map.y0 + (0.58 - 0.5 * Math.sin(Math.max(0, root.moon.alt) * Math.PI / 180)) * root.map.s - rad
+            Image {
+                source: "../images/snow.png"
+                anchors.centerIn: parent
+                width: parent.width * 4; height: width
+                opacity: 0.12 + 0.18 * root.moon.frac
+            }
+            Canvas {
+                id: moonCanvas
+                anchors.fill: parent
+                // lit limb towards the sun: on the right while waxing in the north, flipped in the south
+                readonly property real litSide: (root.moon.waxing ? 1 : -1) * moonItem.side
+                readonly property real frac: root.moon.frac
+                onFracChanged: requestPaint()
+                onLitSideChanged: requestPaint()
+                onWidthChanged: requestPaint()
+                onPaint: {
+                    const c = getContext("2d"), r = width / 2
+                    c.reset()
+                    c.fillStyle = Qt.rgba(0.96, 0.91, 0.79, 0.1)            // earthshine
+                    c.beginPath(); c.arc(r, r, r, 0, 2 * Math.PI); c.fill()
+                    c.fillStyle = Qt.rgba(0.96, 0.91, 0.79, 0.92)
+                    c.beginPath()
+                    for (let i = 0; i <= 32; i++) {
+                        const a = -Math.PI / 2 + Math.PI * i / 32
+                        c.lineTo(r + litSide * r * Math.cos(a), r + r * Math.sin(a))
+                    }
+                    for (let i = 32; i >= 0; i--) {
+                        const a = -Math.PI / 2 + Math.PI * i / 32
+                        c.lineTo(r + litSide * r * Math.cos(a) * (1 - 2 * frac), r + r * Math.sin(a))
+                    }
+                    c.fill()
+                }
+            }
+        }
+        // an occasional shooting star
+        Rectangle {
+            id: meteor
+            width: root.map.s * 0.09; height: Math.max(1, root.map.s * 0.0012)
+            opacity: 0
+            rotation: 28
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0; color: "transparent" }
+                GradientStop { position: 1; color: "#fff4dc" }
+            }
+            ParallelAnimation {
+                id: meteorAnim
+                NumberAnimation { target: meteor; property: "x"; duration: 900; easing.type: Easing.InQuad }
+                NumberAnimation { target: meteor; property: "y"; duration: 900; easing.type: Easing.InQuad }
+                SequentialAnimation {
+                    NumberAnimation { target: meteor; property: "opacity"; to: 0.55; duration: 200 }
+                    NumberAnimation { target: meteor; property: "opacity"; to: 0; duration: 700 }
+                }
+            }
+            Timer {
+                running: root.night > 0.8 && root.cover < 0.5
+                repeat: true
+                interval: 60000
+                onTriggered: {
+                    interval = 45000 + Math.random() * 120000
+                    const x = root.width * (0.1 + 0.7 * Math.random()), y = root.height * (0.05 + 0.2 * Math.random())
+                    meteor.x = x; meteor.y = y
+                    meteorAnim.animations[0].to = x + root.map.s * 0.22
+                    meteorAnim.animations[1].to = y + root.map.s * 0.12
+                    meteorAnim.restart()
+                }
+            }
+        }
         Repeater {
             model: Math.round(260 * root.sliceW / root.width)
             Rectangle {
@@ -390,6 +646,96 @@ WallpaperItem {
             groups: ["snow"]
             xVariance: 60
             pace: 50
+        }
+    }
+
+    // seasonal life: fireflies on warm summer nights, autumn leaves in the wind, spring pollen,
+    // and snow blowing off the peaks. All faint and slow.
+    ParticleSystem {
+        id: life
+        anchors.fill: parent
+        running: root.fireflies > 0.05 || root.leaves > 0.05 || root.pollen > 0.05 || root.blowSnow > 0.05
+
+        ImageParticle {
+            groups: ["fly"]
+            source: "../images/snow.png"
+            color: "#f4dc8e"
+            alpha: 0.5
+            alphaVariation: 0.2
+            entryEffect: ImageParticle.Fade                 // glow on, then off again
+        }
+        Emitter {
+            group: "fly"
+            enabled: root.fireflies > 0.05
+            y: root.height * 0.7; width: root.width; height: root.height * 0.28
+            emitRate: 10 * root.fireflies * root.width / 2560
+            lifeSpan: 4000; lifeSpanVariation: 1500
+            size: 6; sizeVariation: 2
+            velocity: AngleDirection { angleVariation: 360; magnitude: 10; magnitudeVariation: 6 }
+        }
+        Wander { groups: ["fly"]; xVariance: 40; yVariance: 30; pace: 25 }
+
+        ImageParticle {
+            groups: ["leaf"]
+            source: "../images/leaf.png"
+            alpha: 0.55
+            rotationVariation: 180
+            rotationVelocity: 40; rotationVelocityVariation: 120
+            entryEffect: ImageParticle.Fade
+        }
+        Emitter {
+            group: "leaf"
+            enabled: root.leaves > 0.05
+            x: root.windSign > 0 ? -root.width * 0.3 : 0
+            y: root.height * 0.55; width: root.width * 1.3; height: root.height * 0.35
+            emitRate: 2.5 * root.leaves * root.width / 2560
+            lifeSpan: 9000; lifeSpanVariation: 2000
+            size: 12; sizeVariation: 4
+            velocity: AngleDirection { angle: root.windSign > 0 ? 5 : 175; angleVariation: 15; magnitude: 40 + root.wind * 3; magnitudeVariation: 30 }
+        }
+        Gravity { groups: ["leaf"]; angle: 90; magnitude: 6 }
+        Wander { groups: ["leaf"]; xVariance: 30; yVariance: 60; pace: 40 }
+
+        ImageParticle {
+            groups: ["pollen"]
+            source: "../images/snow.png"
+            color: "#fff3d4"
+            alpha: 0.3
+            entryEffect: ImageParticle.Fade
+        }
+        Emitter {
+            group: "pollen"
+            enabled: root.pollen > 0.05
+            y: root.height * 0.35; width: root.width; height: root.height * 0.6
+            emitRate: 3 * root.pollen * root.width / 2560
+            lifeSpan: 10000
+            size: 3; sizeVariation: 1
+            velocity: AngleDirection { angle: -90; angleVariation: 180; magnitude: 8 }
+        }
+        Wander { groups: ["pollen"]; xVariance: 25; yVariance: 25; pace: 15 }
+
+        ImageParticle {
+            groups: ["spin"]
+            source: "../images/snow.png"
+            color: "#f1e6d0"
+            alpha: 0.1 * (1 - 0.5 * root.night)            // soft spindrift, not sparkles
+            entryEffect: ImageParticle.Fade
+        }
+        Repeater {
+            model: Scene.peaks
+            Emitter {
+                required property var modelData
+                system: life
+                group: "spin"
+                enabled: root.blowSnow > 0.05 && modelData[2] > 1 - root.snowShown
+                x: root.map.x0 + (modelData[0] - 0.02) * root.map.s; y: root.map.y0 + modelData[1] * root.map.s
+                width: 0.04 * root.map.s; height: 6
+                emitRate: 14 * root.blowSnow
+                lifeSpan: 2600; lifeSpanVariation: 800
+                size: 12; sizeVariation: 6
+                endSize: 22
+                velocity: AngleDirection { angle: root.windSign > 0 ? -8 : 188; angleVariation: 15; magnitude: 60 + root.wind * 2.5; magnitudeVariation: 30 }
+            }
         }
     }
 

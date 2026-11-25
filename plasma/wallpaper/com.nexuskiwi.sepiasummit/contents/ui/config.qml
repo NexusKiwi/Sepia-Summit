@@ -18,6 +18,7 @@ Kirigami.FormLayout {
     property alias cfg_Port: port.value
     property alias cfg_Weather: weather.checked
     property alias cfg_DayNight: dayNight.checked
+    property alias cfg_Seasons: seasons.checked
 
     QQC2.TextField { id: bg; Kirigami.FormData.label: "Wallpaper image:"; Layout.preferredWidth: Kirigami.Units.gridUnit * 24 }
     QQC2.TextField { id: fg; Kirigami.FormData.label: "Front ridges (cut-out):"; Layout.preferredWidth: Kirigami.Units.gridUnit * 24 }
@@ -37,4 +38,5 @@ Kirigami.FormLayout {
 
     QQC2.CheckBox { id: weather; Kirigami.FormData.label: "Live weather:"; text: "Clouds, rain, snow, fog (needs sepia-weather)" }
     QQC2.CheckBox { id: dayNight; Kirigami.FormData.label: "Day and night:"; text: "Follow the sun at the weather location" }
+    QQC2.CheckBox { id: seasons; Kirigami.FormData.label: "Seasons:"; text: "Snowline, trees, fireflies, autumn leaves" }
 }

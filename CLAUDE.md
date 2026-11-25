@@ -5,7 +5,7 @@ Context for Claude Code working in this repo. Read this first.
 ## What this is
 
 Sepia Summit is a Rainmeter-style desktop "rice" for KDE Plasma 6 on Linux, built for the
-owner's (NexusKiwi) PC and shared with friends. It has three parts:
+owner's (NexusKiwi) PC and shared with friends. It has these parts:
 
 1. **Wallpaper** — a procedural sepia mountain range (`tools/make_wallpaper.py`), rendered
    for dual, ultrawide and single screens from one shared "world", so every size shows the
@@ -24,6 +24,12 @@ owner's (NexusKiwi) PC and shared with friends. It has three parts:
    lat/lon (so DST/seasons need nothing), draws clouds/overcast inside the `_sky.png` mask (exact,
    from the generator), and light/stars/fog/rain/snow above the ridges. The location lives only in
    `~/.config/sepia-summit/weather.json`, never in the repo (it's public).
+5. **Seasons** — season from the date and hemisphere (`yearPhase` 0 = midsummer, mid-Jan south /
+   mid-Jul north). Snow = the wallpaper brightened through `_snow.png` (alpha = how early a spot gets
+   snow) with `maskThresholdMin = 1 - snowShown`. Trees (`contents/code/scene.js`, generated in world
+   units by make_wallpaper.py from the same ridge lines) are drawn from the `trees.png` sprite sheet,
+   cross-fading season columns and swaying with `drift`. Fireflies/leaves/pollen/spindrift are a
+   second ParticleSystem; the moon is computed (low precision) and drawn on a Canvas.
 
 `install.sh` sets up everything and is safe to re-run. `README.md` is the user-facing doc.
 
@@ -61,6 +67,12 @@ from a clean clone was tested on 2026-11-24, starting from the original desktop.
 - In Span mode (lock screen) each monitor's wallpaper instance draws only its slice of a shared
   desktop. Anything spread across the sky (clouds, stars) must be laid out over `sliceX/sliceW`,
   not `width`, or each monitor shows a copy of the same sky.
+- MultiEffect's mask spread is centred on the threshold: threshold 0 with spread 0.3 lets ~50% of
+  the masked-out area through (clouds showed over the peaks). Use threshold 0.5 for binary masks.
+  Brightness alone is fine on a masked MultiEffect; contrast/saturation left dark smudges.
+- A Loader reloading a new URL that resolves Ready again doesn't emit statusChanged: use `onLoaded`.
+- Weather/season effects are tuned to be faint (see above). Spindrift, fireflies and pollen use big,
+  very low-alpha particles; small bright dots read as sparkles.
 - There is no `qml` runner on the host; test QML by installing and restarting plasmashell.
 
 ## Repo layout
@@ -84,10 +96,12 @@ plasma/colors/                app colour scheme
 konsole/                      Konsole profile and colour scheme
 plasma/sepia-weather.py       weather fetcher + conky lines + `preview` (installed as ~/.local/bin/sepia-weather)
 plasma/sepia-weather.{service,timer}  10-minute refresh
-tools/make_wallpaper.py       generator (numpy + Pillow). --seed, --split, --only, --sky-only (masks only)
-tools/make_weather_assets.py  cloud/stratus/rain/snow/veil sprites → plasma/wallpaper/…/contents/images
+tools/make_wallpaper.py       generator (numpy + Pillow). --seed, --split, --only, --masks-only (_sky/_snow
+                              masks + scene.js; the images themselves stay bit-identical)
+tools/make_weather_assets.py  cloud/stratus/rain/snow/veil/tree/leaf sprites → plasma/wallpaper/…/contents/images
 wallpapers/                   generated PNGs (+ _LEFT/_RIGHT halves for dual, + _front cut-outs,
-                              + _sky masks: white with alpha = open sky, because MultiEffect masks by alpha)
+                              + _sky masks: white with alpha = open sky, because MultiEffect masks by alpha,
+                              + _snow masks: alpha = snow level)
 docs/                         README images (the panel close-up and live preview are MOCK-UPS)
 ```
 
@@ -120,8 +134,10 @@ docs/                         README images (the panel close-up and live preview
 3. **Login screen** — the owner's machine uses **Plasma Login Manager**: Breeze only, but set its
    wallpaper (maybe even the live plugin). If **SDDM**: a full custom `sepia-summit` SDDM theme.
    Bazzite is immutable, so themes go in a writable location; check the Bazzite docs.
-4. **Splash screen** — custom Plasma splash (the peak fading in on the sepia sky).
-5. The friend's machine may have different hardware. Keep auto-detection robust: CPU
+4. **Moving sun** — the generator would leave the sun out and the wallpaper draw it at its real
+   position (needs regenerating all wallpapers, ~90 MB). Agreed in principle, not started.
+5. **Splash screen** — custom Plasma splash (the peak fading in on the sepia sky).
+6. The friend's machine may have different hardware. Keep auto-detection robust: CPU
    thread count (the per-core bars are hard-coded to 16), non-NVIDIA GPUs (gpu.sh only knows
    nvidia-smi; AMD could use `/sys/class/drm/card*/device/gpu_busy_percent` + hwmon `amdgpu`).
 
