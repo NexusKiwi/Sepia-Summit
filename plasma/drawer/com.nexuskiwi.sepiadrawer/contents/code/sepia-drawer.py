@@ -78,6 +78,34 @@ def tab_for(entry):
     return "Apps"
 
 
+def localized(entry, key):
+    """Value of key in the user's language if the file has one, else the plain value."""
+    lang = os.environ.get("LANG", "").split(".")[0]          # e.g. en_US
+    for k in (f"{key}[{lang}]", f"{key}[{lang.split('_')[0]}]", key):
+        if k in entry:
+            return entry[k]
+    return ""
+
+
+def search_terms(entry):
+    """Words the search matches besides the name, like Kickoff/KRunner:
+    generic name ("Terminal"), keywords, executable name, and the comment."""
+    words = [entry.get("GenericName", ""), localized(entry, "GenericName"),
+             *entry.get("Keywords", "").split(";"), *localized(entry, "Keywords").split(";")]
+    try:
+        argv = [a for a in shlex.split(entry.get("Exec", "")) if not FIELD_CODE.match(a)]
+    except ValueError:
+        argv = []
+    if argv and os.path.basename(argv[0]) == "flatpak":
+        # flatpak run [--opts] org.foo.Bar -> "bar"
+        app_id = next((a for a in argv[2:] if not a.startswith("-")), "")
+        words.append(app_id.split(".")[-1])
+    elif argv and os.path.basename(argv[0]) != "env":
+        words.append(os.path.basename(argv[0]))
+    keywords = " ".join(dict.fromkeys(w.strip().casefold() for w in words if w.strip()))
+    return keywords, localized(entry, "Comment").casefold()
+
+
 def list_apps():
     apps, seen = [], set()
     sources = [desktop_dir(), *app_dirs()]
@@ -92,8 +120,11 @@ def list_apps():
             if key in seen:
                 continue
             seen.add(key)
+            keywords, comment = search_terms(entry)
             apps.append({
                 "name": entry["Name"],
+                "keywords": keywords,
+                "comment": comment,
                 "icon": entry.get("Icon", "application-x-executable"),
                 "path": str(path),
                 "tab": tab_for(entry),

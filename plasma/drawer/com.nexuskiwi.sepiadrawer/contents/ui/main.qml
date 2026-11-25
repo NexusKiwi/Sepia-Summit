@@ -28,7 +28,25 @@ PlasmoidItem {
     property double closedAt: 0
     readonly property var shown: {
         const q = query.trim().toLowerCase()
-        return apps.filter(a => q ? a.name.toLowerCase().includes(q) : a.tab === currentTab)
+        if (!q)
+            return apps.filter(a => a.tab === currentTab)
+        // Rank like Kickoff: name start > word in name > name contains > keyword/generic name > comment
+        const words = q.split(/\s+/)
+        const score = a => {
+            const name = a.name.toLowerCase()
+            const kw = a.keywords || ""
+            const all = name + " " + kw + " " + (a.comment || "")
+            if (!words.every(w => all.includes(w))) return 0
+            if (name.startsWith(q)) return 5
+            if ((" " + name).includes(" " + q)) return 4
+            if (name.includes(q)) return 3
+            if ((" " + kw).includes(" " + q)) return 2
+            return 1
+        }
+        return apps.map(a => ({ app: a, s: score(a) }))
+                   .filter(x => x.s > 0)
+                   .sort((x, y) => y.s - x.s || x.app.name.localeCompare(y.app.name))
+                   .map(x => x.app)
     }
 
     // Only what this machine can actually do (hibernate is often unavailable)
