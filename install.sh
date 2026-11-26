@@ -203,9 +203,27 @@ if [ "${LOCK:-1}" = "1" ] && command -v kwriteconfig6 >/dev/null; then
 fi
 
 # Dock and app drawer -------------------------------------------------------
-# Replaces the taskbars with one floating dock on the left monitor and hides
-# desktop icons from view (the files stay). DOCK=0 skips this.
+# Replaces the taskbars with one floating glass dock down the left edge of the left monitor, with
+# a few apps pinned, and hides desktop icons from view (the files stay). DOCK=0 skips this.
 if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
+  have_app() {
+    local d
+    for d in "$HOME/.local/share/applications" /usr/share/applications /usr/local/share/applications \
+             /var/lib/flatpak/exports/share/applications "$HOME/.local/share/flatpak/exports/share/applications"; do
+      [ -f "$d/$1" ] && return 0
+    done
+    return 1
+  }
+  # Pinned: your default browser, files, terminal, then Steam, Discord and Claude if installed
+  LAUNCHERS=""
+  browser="$(xdg-settings get default-web-browser 2>/dev/null || true)"
+  for app in "$browser" org.kde.dolphin.desktop org.kde.konsole.desktop steam.desktop discord.desktop \
+             com.discordapp.Discord.desktop claude-desktop.desktop claude.desktop; do
+    [ -n "$app" ] && have_app "$app" && case ",$LAUNCHERS" in *",applications:$app,"*) ;; *) LAUNCHERS+="applications:$app,";; esac
+  done
+  LAUNCHERS="${LAUNCHERS%,}"
+  dock_script() { sed -e "s|@TRAY_ITEMS@|$1|" -e "s|@LAUNCHERS@|$LAUNCHERS|g" "$KIT/plasma/apply-dock.js"; }
+  DOCK_MARK="$HOME/.local/share/sepia-summit/dock-version"
   restart_shell() {
     # Several restarts in a row would otherwise hit systemd's start limit
     systemctl --user reset-failed plasma-plasmashell 2>/dev/null || true
@@ -232,10 +250,10 @@ if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
       sleep 12   # let Plasma save it before the restart
       drawer_changed=1
     fi
-    # Docks set up before the end spacers and dodge-windows hiding existed
-    if ! grep -q '^plugin=org.kde.plasma.panelspacer$' "$APPLETS"; then
+    # Docks set up before the end spacers, or before the dock moved to the left edge (version 2)
+    if ! grep -q '^plugin=org.kde.plasma.panelspacer$' "$APPLETS" || [ "$(cat "$DOCK_MARK" 2>/dev/null)" != 2 ]; then
       for _ in 1 2; do   # twice, as below: the new spacers' order only sticks on the second pass
-        "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(sed "s|@TRAY_ITEMS@||" "$KIT/plasma/apply-dock.js")" >/dev/null \
+        "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(dock_script "")" >/dev/null \
           || c "Couldn't update the dock."
         sleep 12
         restart_shell
@@ -243,6 +261,7 @@ if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
       drawer_changed=0
     fi
     [ "$drawer_changed" = 1 ] && restart_shell
+    mkdir -p "$(dirname "$DOCK_MARK")"; echo 2 > "$DOCK_MARK"
   else
     BACKUP="$HOME/.local/share/sepia-summit/backups/pre-dock-$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$BACKUP"
@@ -259,12 +278,31 @@ if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
     # Twice: on the first pass Plasma saves its own order over ours while it
     # adds the new widgets. Once they exist, the second pass sticks.
     for _ in 1 2; do
-      "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(sed "s|@TRAY_ITEMS@|$TRAY_ITEMS|" "$KIT/plasma/apply-dock.js")" >/dev/null \
+      "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(dock_script "$TRAY_ITEMS")" >/dev/null \
         || c "Couldn't set up the dock automatically."
       sleep 12   # let Plasma save the layout, the widget order applies on reload
       restart_shell
     done
+    mkdir -p "$(dirname "$DOCK_MARK")"; echo 2 > "$DOCK_MARK"
   fi
+fi
+
+# Icons ---------------------------------------------------------------------
+# Cream line icons for the browser, files, terminal, Steam, Discord and Claude. The theme holds only
+# those and inherits everything else from the icon theme you had. ICONS=0 skips this.
+if [ "${ICONS:-1}" = "1" ] && [ -x /usr/libexec/plasma-changeicons ]; then
+  ICONDIR="$HOME/.local/share/icons/sepia-summit"
+  cur="$(kreadconfig6 --group Icons --key Theme 2>/dev/null || true)"
+  if [ "$cur" = "sepia-summit" ]; then
+    base="$(sed -n 's/^Inherits=\([^,]*\).*/\1/p' "$ICONDIR/index.theme" 2>/dev/null)"
+  else
+    base="${cur:-breeze}"
+    c "Icon theme was ${cur:-breeze}; Sepia Summit builds on it (switch back in System Settings > Colours & Themes > Icons)"
+  fi
+  rm -rf "$ICONDIR"; mkdir -p "$ICONDIR"
+  cp -r "$KIT/plasma/icons/sepia-summit/." "$ICONDIR/"
+  sed -i "s|@INHERITS@|${base:-breeze}|" "$ICONDIR/index.theme"
+  /usr/libexec/plasma-changeicons sepia-summit >/dev/null 2>&1 || c "Couldn't switch the icon theme automatically."
 fi
 
 # Plasma style --------------------------------------------------------------
@@ -281,14 +319,27 @@ if [ "${THEME:-1}" = "1" ] && command -v plasma-apply-desktoptheme >/dev/null; t
   fi
   rm -rf "$STYLE"; mkdir -p "$STYLE"
   cp -r "$KIT/plasma/theme/sepia-summit/." "$STYLE/"
-  for spec in widgets/panel-background.svgz:0.62 translucent/widgets/panel-background.svgz:0.62 \
-              dialogs/background.svgz:0.84 translucent/dialogs/background.svgz:0.84; do
+  # translucent/ is what Plasma uses when KWin can blur behind it: glass. The others are the fallback.
+  for spec in widgets/panel-background.svgz:0.62 translucent/widgets/panel-background.svgz:0.36 \
+              dialogs/background.svgz:0.84 translucent/dialogs/background.svgz:0.66; do
     svg="${spec%%:*}"; alpha="${spec##*:}"
     [ -f "$BREEZE/$svg" ] || continue
     mkdir -p "$STYLE/$(dirname "$svg")"
     zcat "$BREEZE/$svg" | sed "s/opacity:0\.85/opacity:$alpha/g" | gzip -9n > "$STYLE/$svg"
   done
   plasma-apply-desktoptheme sepia-summit >/dev/null 2>&1 || c "Couldn't apply the Plasma style automatically."
+
+  # Frosted glass: a bit more blur than KWin's default, with fine grain. GLASS=0 leaves KWin alone.
+  if [ "${GLASS:-1}" = "1" ] && command -v kwriteconfig6 >/dev/null; then
+    if [ -z "$(kreadconfig6 --file kwinrc --group Effect-blur --key SepiaPrevious)" ]; then
+      prev="$(kreadconfig6 --file kwinrc --group Effect-blur --key BlurStrength),$(kreadconfig6 --file kwinrc --group Effect-blur --key NoiseStrength)"
+      kwriteconfig6 --file kwinrc --group Effect-blur --key SepiaPrevious "$prev"     # empty = KWin defaults
+    fi
+    kwriteconfig6 --file kwinrc --group Plugins --key blurEnabled true
+    kwriteconfig6 --file kwinrc --group Effect-blur --key BlurStrength 11
+    kwriteconfig6 --file kwinrc --group Effect-blur --key NoiseStrength 3
+    [ -n "$QDBUS" ] && "$QDBUS" org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
+  fi
 
   # Matching colours for app windows, with a tan accent
   SCHEMES="$HOME/.local/share/color-schemes"

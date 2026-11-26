@@ -18,5 +18,6 @@
     <entry name="Weather" type="Bool"><default>true</default></entry>
     <entry name="DayNight" type="Bool"><default>true</default></entry>
     <entry name="Seasons" type="Bool"><default>true</default></entry>
+    <entry name="Glass" type="Bool"><default>true</default></entry>
   </group>
 </kcfg>

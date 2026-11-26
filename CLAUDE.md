@@ -30,6 +30,20 @@ owner's (NexusKiwi) PC and shared with friends. It has these parts:
    units by make_wallpaper.py from the same ridge lines) are drawn from the `trees.png` sprite sheet,
    cross-fading season columns and swaying with `drift`. Fireflies/leaves/pollen/spindrift are a
    second ParticleSystem; the moon is computed (low precision) and drawn on a Canvas.
+6. **Sun, eclipses, meteors** — the images have no sun (`make_wallpaper.py --painted-sun` restores the
+   old one); the QML places `sun.png`/`sunglow.png` and the moon by azimuth/altitude (`skyX`/`skyY`:
+   facing the equator, ±90° = ±1.6 world units). `sepia-weather` embeds a Meeus-based sun/moon model
+   (checked against the 2024-04-08 and 2025-03-14 eclipses) and caches `eclipses` (per-minute samples
+   of the moon's offset from the sun in sun radii, or the shadow's offset from the moon in moon radii)
+   and `meteors` (current shower: rate seen from here, radiant alt/az). The QML interpolates samples.
+7. **Glass** — the dock and popups are frosted by KWin (the style's `translucent/` SVGs at 0.36/0.66,
+   KWin blur strength 11, noise 3). conky's desktop-layer window can't be blurred by KWin, so
+   `panel.lua` writes its size/monitor to `~/.cache/sepia-summit/glass.qml` and the wallpaper draws a
+   blurred copy of its `scene` item there. Desktop applets can do real glass themselves:
+   `Plasmoid.containment.wallpaperGraphicsObject` + ShaderEffectSource + MultiEffect blur.
+8. **Dock + icons** — vertical floating dock on the left edge (apply-dock.js, `@LAUNCHERS@` from
+   install.sh: default browser, Dolphin, Konsole, Steam, Discord, Claude). `plasma/icons/sepia-summit`
+   is an icon theme with only those apps (from `tools/make_icons.py`), inheriting the previous theme.
 
 `install.sh` sets up everything and is safe to re-run. `README.md` is the user-facing doc.
 
@@ -74,6 +88,12 @@ from a clean clone was tested on 2026-11-24, starting from the original desktop.
 - Weather/season effects are tuned to be faint (see above). Spindrift, fireflies and pollen use big,
   very low-alpha particles; small bright dots read as sparkles.
 - There is no `qml` runner on the host; test QML by installing and restarting plasmashell.
+- `console.log` from the wallpaper doesn't reach the journal; `console.warn` does.
+- conky's monitor number counts screens from the left; `Qt.application.screens` is in another order,
+  so the wallpaper sorts screens by `virtualX` before matching it.
+- The weather timer runs `sepia-weather refresh`, which leaves a preview alone for 15 minutes (a
+  plain `fetch` replaced previews mid-eclipse).
+- `pkill -f` with a pattern that also appears in your own shell command kills that shell (exit 144).
 
 ## Repo layout
 
@@ -89,7 +109,8 @@ plasma/wallpaper/…/           Plasma 6 wallpaper package (metadata.json, conte
 plasma/sepia-cava-server.py   CAVA → localhost HTTP (stdlib only, 127.0.0.1 only)
 plasma/sepia-cava.service     systemd --user unit (ExecStart=%h/.local/bin/sepia-cava-server)
 plasma/set-wallpaper.js       plasmashell evaluateScript: picks images per screen (@WPDIR@ @LIVE@)
-plasma/apply-dock.js          plasmashell evaluateScript: floating dock on the left monitor, hides desktop icons
+plasma/apply-dock.js          plasmashell evaluateScript: vertical glass dock on the left monitor, hides desktop icons
+plasma/icons/sepia-summit/    icon theme (index.theme Inherits=@INHERITS@ filled by install.sh)
 plasma/drawer/…/              app drawer plasmoid (contents/code/sepia-drawer.py lists and launches apps)
 plasma/theme/sepia-summit/    Plasma style (install.sh tints Breeze's panel and dialog artwork)
 plasma/colors/                app colour scheme
@@ -98,7 +119,8 @@ plasma/sepia-weather.py       weather fetcher + conky lines + `preview` (install
 plasma/sepia-weather.{service,timer}  10-minute refresh
 tools/make_wallpaper.py       generator (numpy + Pillow). --seed, --split, --only, --masks-only (_sky/_snow
                               masks + scene.js; the images themselves stay bit-identical)
-tools/make_weather_assets.py  cloud/stratus/rain/snow/veil/tree/leaf sprites → plasma/wallpaper/…/contents/images
+tools/make_weather_assets.py  cloud/stratus/rain/snow/sun/sunglow/tree/leaf sprites → plasma/wallpaper/…/contents/images
+tools/make_icons.py           cream line app icons → plasma/icons/sepia-summit (stdlib)
 wallpapers/                   generated PNGs (+ _LEFT/_RIGHT halves for dual, + _front cut-outs,
                               + _sky masks: white with alpha = open sky, because MultiEffect masks by alpha,
                               + _snow masks: alpha = snow level)
@@ -120,7 +142,7 @@ docs/                         README images (the panel close-up and live preview
 - Fonts: Noto Serif for the clock and date (light / italic), Noto Sans Mono for stats, Noto Sans
   bold with letter spacing for section headings.
 - Layout: apps and the dock on the **left** (left monitor), widgets on the **right** (right monitor).
-- Wallpaper: sun and tallest peak on the left, calmer sky on the right for the widgets.
+- Wallpaper: tallest peak on the left, calmer sky on the right for the widgets. The sun is live.
   Valley line for the default `--split 3` is about 0.79 of the height, so the plugin baseline defaults to 80%.
 
 ## Roadmap (agreed with the owner, not built yet)
@@ -134,8 +156,7 @@ docs/                         README images (the panel close-up and live preview
 3. **Login screen** — the owner's machine uses **Plasma Login Manager**: Breeze only, but set its
    wallpaper (maybe even the live plugin). If **SDDM**: a full custom `sepia-summit` SDDM theme.
    Bazzite is immutable, so themes go in a writable location; check the Bazzite docs.
-4. **Moving sun** — the generator would leave the sun out and the wallpaper draw it at its real
-   position (needs regenerating all wallpapers, ~90 MB). Agreed in principle, not started.
+4. ~~**Moving sun**~~ — done (with eclipses and meteor showers).
 5. **Splash screen** — custom Plasma splash (the peak fading in on the sepia sky).
 6. The friend's machine may have different hardware. Keep auto-detection robust: CPU
    thread count (the per-core bars are hard-coded to 16), non-NVIDIA GPUs (gpu.sh only knows

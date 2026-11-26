@@ -101,7 +101,7 @@ def value_noise_2d(rng, w, h, cell):
     return np.asarray(img, dtype=np.float32)[:h, :w] / 255.0
 
 
-def render(W, H, seed, split=3):
+def render(W, H, seed, split=3, painted_sun=False):
     """Returns (image, front_mask, valley, sky_mask, snow_level). front_mask = coverage of layers
     >= split; valley = lowest point (0..1 from top) of the split layer's ridge; sky_mask = 1 where
     no mountain covers the sky (the live wallpaper draws clouds and stars only there);
@@ -117,11 +117,14 @@ def render(W, H, seed, split=3):
     sky = 0.93 - 0.42 * np.clip((horizon - ys) / horizon, 0, 1) ** 0.9
     sky = np.broadcast_to(sky, (H, W)).copy()
 
+    # The live wallpaper draws the sun where it really is, so by default it isn't painted in.
+    # --painted-sun gives the original look (a low sun on the left) for a static wallpaper.
     sun_x, sun_y, sun_r = -0.78, 0.40, 0.055
     d = np.sqrt((xs - sun_x) ** 2 + (ys - sun_y) ** 2)
-    sky += 0.22 * np.exp(-(d / 0.16) ** 2) + 0.10 * np.exp(-(d / 0.6) ** 2)
-    sky = np.where(d < sun_r, 1.05, sky)
-    sky += 0.06 * np.clip(1 - (d - sun_r) / 0.012, 0, 1) * (d >= sun_r)
+    if painted_sun:
+        sky += 0.22 * np.exp(-(d / 0.16) ** 2) + 0.10 * np.exp(-(d / 0.6) ** 2)
+        sky = np.where(d < sun_r, 1.05, sky)
+        sky += 0.06 * np.clip(1 - (d - sun_r) / 0.012, 0, 1) * (d >= sun_r)
 
     # wispy cloud bands (stretched noise, seeded independent of size)
     crng = np.random.default_rng(seed + 1)
@@ -202,7 +205,8 @@ def render(W, H, seed, split=3):
 
     # --- finishing ------------------------------------------------------
     # god-ray-ish glow from sun over everything
-    img = img + 0.04 * np.exp(-(d / 0.5) ** 2)
+    if painted_sun:
+        img = img + 0.04 * np.exp(-(d / 0.5) ** 2)
     # vignette
     vx = xs / (W / H / 2)
     v = 1 - 0.28 * np.clip(vx ** 2 * 0.6 + ((ys - 0.5) * 2) ** 2 * 0.5, 0, 1)
@@ -281,6 +285,7 @@ def main():
     ap.add_argument("--split", type=int, default=3, help="first mountain layer drawn in front of the visualiser (0=far .. 5=near)")
     ap.add_argument("--masks-only", "--sky-only", dest="masks_only", action="store_true",
                     help="write only the _sky/_snow masks and scene.js, leave the wallpapers alone")
+    ap.add_argument("--painted-sun", action="store_true", help="paint the sun into the images (static use)")
     ap.add_argument("--scene", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
                     "plasma/wallpaper/com.nexuskiwi.sepiasummit/contents/code/scene.js"))
     a = ap.parse_args()
@@ -289,7 +294,7 @@ def main():
     for name, (w, h) in SIZES.items():
         if a.only and a.only not in name:
             continue
-        im, front, valley, sky, snowlv = render(w, h, a.seed, a.split)
+        im, front, valley, sky, snowlv = render(w, h, a.seed, a.split, a.painted_sun)
         p = os.path.join(a.outdir, f"sepia-mountains_{name}.png")
         # sky mask for the live wallpaper's weather (clouds, stars stay behind the mountains)
         # (white, alpha = sky) because Qt's MultiEffect masks by alpha

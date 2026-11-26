@@ -5,7 +5,8 @@ Writes into plasma/wallpaper/com.nexuskiwi.sepiasummit/contents/images/:
   cloud1..5.png   soft sepia cumulus, lit from the left like the mountains
   stratus1..2.png long thin cloud bands for overcast skies
   rain.png        one rain streak      snow.png   one soft flake
-  veil.png        soft haze laid over the painted sun on cloudy days
+  sun.png         the sun's disc with its tight halo (the live wallpaper places it)
+  sunglow.png     the sun's wide glow, laid over the whole scene at low opacity
   trees.png       tree sprite sheet: a row per hill (layers 3, 4, 5, coloured like that hill)
                   and 16 columns: conifer A, B, A snowy, B snowy, then three deciduous trees
                   in summer, autumn, winter, spring (same branches, so the seasons blend)
@@ -90,12 +91,26 @@ def snow():
     return Image.fromarray((np.dstack([np.ones((s, s, 3)), a]) * 255).astype(np.uint8), "RGBA")
 
 
-def veil(colour=(0xa0, 0x80, 0x5e), s=512):
-    """Soft round haze in the overcast sky colour, laid over the painted sun when it's cloudy."""
-    ys, xs = np.mgrid[0:s, 0:s] - (s - 1) / 2
-    a = np.exp(-((xs ** 2 + ys ** 2) / (s * 0.26) ** 2))
-    a *= np.clip(1 - np.sqrt(xs ** 2 + ys ** 2) / (s / 2), 0, 1)        # reach 0 at the edge
-    rgb = np.broadcast_to(np.array(colour) / 255, (s, s, 3))
+def sun(s=1024, reach=0.45):
+    """The old painted sun (make_wallpaper.py --painted-sun) as a sprite: s px = 2 * reach world
+    units. The paint lifted the sky by 0.22 * exp(-(d/0.16)^2) on top of ~0.75, so the core blew out
+    to cream with no hard disc; alpha here is that lift relative to the headroom left (0.25)."""
+    ys, xs = (np.mgrid[0:s, 0:s] - (s - 1) / 2) * (2 * reach / s)
+    d = np.sqrt(xs ** 2 + ys ** 2)
+    lift = 0.22 * np.exp(-(d / 0.16) ** 2) + 0.05 * np.clip(1 - (d - 0.055) / 0.02, 0, 1)
+    a = (1 - np.exp(-lift / 0.07)) * np.clip((reach - d) / 0.08, 0, 1)      # soft knee, no plateau ring
+    lum = 0.95 + 0.05 * np.clip(1 - d / 0.07, 0, 1)
+    rgb = gradient_map(lum) / 255
+    return Image.fromarray((np.dstack([rgb, a]) * 255).astype(np.uint8), "RGBA")
+
+
+def sunglow(s=512):
+    """The wide part of the painted sun's light (radius 0.6 world, plus the 0.5 'god ray' wash)."""
+    ys, xs = (np.mgrid[0:s, 0:s] - (s - 1) / 2) * (3.0 / s)                # 1.5 world units across
+    d = np.sqrt(xs ** 2 + ys ** 2)
+    a = np.clip(1.0 * np.exp(-(d / 0.6) ** 2) * np.clip((1.5 - d) / 0.3, 0, 1), 0, 1)
+    a = np.clip(a + np.random.default_rng(5).normal(0, 1.2 / 255, a.shape), 0, 1)   # dither: no rings
+    rgb = gradient_map(np.full(d.shape, 0.95)) / 255
     return Image.fromarray((np.dstack([rgb, a]) * 255).astype(np.uint8), "RGBA")
 
 
@@ -214,7 +229,8 @@ def main():
         stratus(rng).save(os.path.join(OUT, f"stratus{i}.png"), optimize=True)
     rain().save(os.path.join(OUT, "rain.png"))
     snow().save(os.path.join(OUT, "snow.png"))
-    veil().save(os.path.join(OUT, "veil.png"), optimize=True)
+    sun().save(os.path.join(OUT, "sun.png"), optimize=True)
+    sunglow().save(os.path.join(OUT, "sunglow.png"), optimize=True)
     trees(np.random.default_rng(a.seed + 400)).save(os.path.join(OUT, "trees.png"), optimize=True)
     leaf().save(os.path.join(OUT, "leaf.png"), optimize=True)
     print("wrote", os.path.normpath(OUT))
