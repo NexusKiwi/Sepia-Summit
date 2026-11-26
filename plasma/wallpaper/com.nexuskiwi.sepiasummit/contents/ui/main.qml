@@ -56,6 +56,10 @@ WallpaperItem {
     }
     readonly property real sliceX: span ? desk.left - Screen.virtualX : 0
     readonly property real sliceW: span ? desk.right - desk.left : width
+    // Sky things (clouds, mist, stars) always lie across the whole desktop, even when each monitor
+    // shows its own image, so two monitors don't show the same random sky side by side
+    readonly property real skyLeft: desk.left - Screen.virtualX
+    readonly property real skyWide: Math.max(width, desk.right - desk.left)
     readonly property bool rightmost: !span || Screen.virtualX + Screen.width >= desk.right
     readonly property bool showBars: visualiser && rightmost
 
@@ -134,7 +138,7 @@ WallpaperItem {
         yearPhase = (((doy - mid) / 365.25) % 1 + 1) % 1
     }
     // 12 clouds per screen-width of sky (more when one image spans several screens)
-    readonly property int cloudSlots: Math.max(12, Math.round(12 * sliceW / Math.max(1, width)))
+    readonly property int cloudSlots: Math.max(12, Math.round(12 * skyWide / Math.max(1, width)))
 
     function smooth(a, b, v) { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t) }
     function rnd(i, k) { const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x) }
@@ -414,12 +418,12 @@ WallpaperItem {
             Repeater {
                 model: 3
                 Image {
-                    // laid out across the whole desktop (sliceX/sliceW), so Span mode shows one sky
-                    readonly property real span: root.sliceW + width
+                    // laid out across the whole desktop (skyLeft/skyWide), so the monitors share one sky
+                    readonly property real span: root.skyWide + width
                     source: "../images/stratus" + (index % 2 + 1) + ".png"
                     width: root.height * 1.78 * (1.1 + 0.3 * root.rnd(index, 7)); height: root.height * 0.2
                     y: root.height * (0.06 + 0.13 * index)
-                    x: root.sliceX + ((root.rnd(index, 8) * span + root.windSign * root.drift * root.windPx * 0.5) % span + span) % span - width
+                    x: root.skyLeft + ((root.rnd(index, 8) * span + root.windSign * root.drift * root.windPx * 0.5) % span + span) % span - width
                     opacity: Math.max(0, root.overcast - 0.2) * 0.8
                     Behavior on opacity { NumberAnimation { duration: 20000 } }
                 }
@@ -429,11 +433,11 @@ WallpaperItem {
                 model: root.cloudSlots
                 Image {
                     readonly property real scale0: (0.32 + 0.4 * root.rnd(index, 2)) * root.height / 1440
-                    readonly property real span: root.sliceW + width
+                    readonly property real span: root.skyWide + width
                     source: "../images/cloud" + (index % 5 + 1) + ".png"
                     width: 1000 * scale0; height: 460 * scale0
                     y: root.height * (0.02 + 0.3 * root.rnd(index, 1))
-                    x: root.sliceX + ((root.rnd(index, 0) * span + root.windSign * root.drift * root.windPx * (0.7 + 0.6 * root.rnd(index, 3))) % span + span) % span - width
+                    x: root.skyLeft + ((root.rnd(index, 0) * span + root.windSign * root.drift * root.windPx * (0.7 + 0.6 * root.rnd(index, 3))) % span + span) % span - width
                     // dimmer under a grey deck, so they don't outshine an overcast sky
                     opacity: index < Math.round(root.cover * root.cloudSlots) ? 0.85 - 0.4 * root.overcast : 0
                     Behavior on opacity { NumberAnimation { duration: 15000 } }
@@ -516,11 +520,11 @@ WallpaperItem {
             Repeater {
                 model: 4
                 Image {
-                    readonly property real span: root.sliceW + width
+                    readonly property real span: root.skyWide + width
                     source: "../images/stratus" + (index % 2 + 1) + ".png"
                     width: root.height * 1.6; height: root.height * 0.12
                     y: root.height * (0.62 + 0.07 * index)
-                    x: root.sliceX + ((root.rnd(index, 30) * span + root.windSign * root.drift * root.windPx * 0.35) % span + span) % span - width
+                    x: root.skyLeft + ((root.rnd(index, 30) * span + root.windSign * root.drift * root.windPx * 0.35) % span + span) % span - width
                     opacity: 0.32 - 0.04 * index
                 }
             }
@@ -728,10 +732,10 @@ WallpaperItem {
                 }
             }
             Repeater {
-                model: Math.round(260 * root.sliceW / root.width)
+                model: Math.round(260 * root.skyWide / root.width)
                 Rectangle {
                     readonly property real s: 1 + 1.6 * Math.pow(root.rnd(index, 12), 3)
-                    x: root.sliceX + root.rnd(index, 10) * root.sliceW
+                    x: root.skyLeft + root.rnd(index, 10) * root.skyWide
                     y: Math.pow(root.rnd(index, 11), 1.4) * root.height * 0.62
                     width: s; height: s; radius: s / 2
                     color: "#fff4dc"
