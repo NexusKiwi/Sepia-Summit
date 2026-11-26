@@ -104,6 +104,8 @@ from a clean clone was tested on 2026-11-24, starting from the original desktop.
 - The weather timer runs `sepia-weather refresh`, which leaves a preview alone for 15 minutes (a
   plain `fetch` replaced previews mid-eclipse).
 - `pkill -f` with a pattern that also appears in your own shell command kills that shell (exit 144).
+- Never pause a ParticleSystem the moment its effect ends: `running: false` freezes particles in flight
+  (rain hung in the air after a shower). Disable the emitters, keep running for the longest lifeSpan, then pause.
 - Plasma style frames: lay the 9 pieces out edge to edge (Breeze-style, corners R, edges 32 long), use
   `hint-stretch-borders`, and draw the edge line as a *filled* band, not a stroke. Gaps between pieces,
   tiled translucent edges, or a stroke's half-width overhang all showed up as light seams in the dock.

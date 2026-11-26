@@ -766,7 +766,13 @@ WallpaperItem {
         ParticleSystem {
             id: weatherParticles
             anchors.fill: parent
-            running: root.weatherOn && (root.wet || root.snowing)
+            // Pausing a ParticleSystem freezes the particles in flight (rain hung in the air after a
+            // shower), so it keeps running until the last one has lived out its life (snow: 16 s)
+            readonly property bool wanted: root.weatherOn && (root.wet || root.snowing)
+            property bool draining: false
+            onWantedChanged: if (!wanted) { draining = true; weatherDrain.restart() }
+            Timer { id: weatherDrain; interval: 17000; onTriggered: weatherParticles.draining = false }
+            running: wanted || draining
             // slant with the wind, up to ~18°
             readonly property real slant: root.windSign * Math.min(18, (root.wx ? root.wx.wind_kmh : 0) * 0.35)
 
@@ -829,7 +835,12 @@ WallpaperItem {
         ParticleSystem {
             id: life
             anchors.fill: parent
-            running: root.fireflies > 0.05 || root.leaves > 0.05 || root.pollen > 0.05 || root.blowSnow > 0.05
+            // as above: let the last particles finish (longest life 9 s + 2 s variation) before pausing
+            readonly property bool wanted: root.fireflies > 0.05 || root.leaves > 0.05 || root.pollen > 0.05 || root.blowSnow > 0.05
+            property bool draining: false
+            onWantedChanged: if (!wanted) { draining = true; lifeDrain.restart() }
+            Timer { id: lifeDrain; interval: 12000; onTriggered: life.draining = false }
+            running: wanted || draining
 
             ImageParticle {
                 groups: ["fly"]

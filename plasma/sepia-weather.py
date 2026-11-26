@@ -375,7 +375,9 @@ def preview(args):
                  # put the sun where the old painted one was, and the full moon right of the big peak
                  "sun_az": -44 if data.get("latitude", 0) < 0 else 136,
                  "moon_alt": 35, "moon_az": -22 if data.get("latitude", 0) < 0 else 158, "moon_phase": 1.0,
-                 "eclipses": [], "meteors": None})
+                 "eclipses": [], "meteors": None,
+                 # neutral sun times: with the date, the real ones would hint at where you live
+                 "sunrise": "06:00", "sunset": "20:00"})
     data.pop("season", None)
     if season:
         data["season"] = season
