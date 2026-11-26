@@ -339,6 +339,9 @@ def sky_events(lat, lon):
 
 
 def preview(args):
+    # the sky can be left out when other options are given ("preview eclipse=solar" = clear)
+    if args and ("=" in args[0] or args[0] in ("day", "dusk", "night", "summer", "autumn", "winter", "spring")):
+        args = ["clear"] + args
     sky = args[0] if args else "rain"
     when, season, extra = "day", None, {}
     for a in args[1:]:
@@ -382,6 +385,9 @@ def preview(args):
     if season:
         data["season"] = season
     data.update(extra)
+    if any(e["kind"] == "solar" for e in data["eclipses"]):
+        # clear of the big peak, and the moon on the sun (new), not the usual full moon elsewhere
+        data.update({"sun_elevation": 34, "moon_alt": 34, "moon_az": data["sun_az"], "moon_phase": 0.0})
     save_cache(data)
     print(f"Previewing {sky} at {when}{' in ' + season if season else ''}. Run `sepia-weather fetch` to go back to the real weather.")
 

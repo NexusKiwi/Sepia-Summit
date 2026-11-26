@@ -627,7 +627,9 @@ WallpaperItem {
                 id: moonItem
                 readonly property real rad: root.map.s * 0.016
                 readonly property real side: root.wx && root.wx.latitude < 0 ? -1 : 1
-                visible: root.moon.alt > -2
+                // during a solar eclipse the eclipse layer draws the moon over the sun; this one (new moon
+                // glow and earthshine) would show as a grey spot in the middle of it
+                visible: root.moon.alt > -2 && !root.solar.on
                 width: rad * 2; height: rad * 2
                 x: root.map.x0 + root.skyX(root.moon.az) * root.map.s - rad
                 y: root.map.y0 + root.skyY(root.moon.alt) * root.map.s - rad
@@ -738,6 +740,8 @@ WallpaperItem {
                     x: root.skyLeft + root.rnd(index, 10) * root.skyWide
                     y: Math.pow(root.rnd(index, 11), 1.4) * root.height * 0.62
                     width: s; height: s; radius: s / 2
+                    // stars come out during totality, but never in front of the eclipsed sun
+                    visible: !root.solar.on || Math.hypot(x + s / 2 - root.sunPos.x, y + s / 2 - root.sunPos.y) > root.sunR * 1.15
                     color: "#fff4dc"
                     opacity: 0.35 + 0.65 * root.rnd(index, 13)
                     SequentialAnimation on opacity {
