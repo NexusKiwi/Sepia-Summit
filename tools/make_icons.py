@@ -64,6 +64,14 @@ ICONS = {
     ("org.kde.dolphin", "system-file-manager"): '<path d="M8 18 Q8 14 12 14 L24 14 L29.5 19.5 L52 19.5 '
                   'Q56 19.5 56 23.5 L56 48 Q56 52 52 52 L12 52 Q8 52 8 48 Z"/>'
                   f'<path d="M8 27 L56 27" stroke="{TAN}"/>',
+    # three overlapping lights
+    ("OpenRGB", "openrgb", "org.openrgb.OpenRGB"): '<circle cx="32" cy="23" r="13"/>'
+                  '<circle cx="22.5" cy="39.5" r="13"/>'
+                  f'<circle cx="41.5" cy="39.5" r="13" stroke="{TAN}"/>',
+    # the app drawer button: a 3 x 3 grid of rounded tiles, the centre one tan
+    ("sepia-app-grid",): "".join(f'<rect x="{x}" y="{y}" width="11" height="11" rx="2"'
+                                 + (f' stroke="{TAN}"' if (x, y) == (26.5, 26.5) else "") + "/>"
+                                 for y in (11.5, 26.5, 41.5) for x in (11.5, 26.5, 41.5)),
     ("com.google.Chrome", "google-chrome", "chrome", "chromium", "org.chromium.Chromium"): chrome(),
     # a fox curled round a small globe
     ("org.mozilla.firefox", "firefox"): f'<circle cx="33" cy="34" r="12" stroke="{TAN}"/>'

@@ -1,0 +1,14 @@
+{
+    "KPlugin": {
+        "Authors": [{ "Name": "NexusKiwi" }],
+        "Category": "System Information",
+        "Description": "A dock button for one tray app (OpenRGB by default): click it like the tray icon",
+        "Icon": "OpenRGB",
+        "Id": "com.nexuskiwi.sepiatrayitem",
+        "License": "GPL-2.0+",
+        "Name": "Sepia Tray Button",
+        "Version": "1.0"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

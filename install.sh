@@ -222,7 +222,16 @@ if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
     [ -n "$app" ] && have_app "$app" && case ",$LAUNCHERS" in *",applications:$app,"*) ;; *) LAUNCHERS+="applications:$app,";; esac
   done
   LAUNCHERS="${LAUNCHERS%,}"
-  dock_script() { sed -e "s|@TRAY_ITEMS@|$1|" -e "s|@LAUNCHERS@|$LAUNCHERS|g" "$KIT/plasma/apply-dock.js"; }
+  # Tray apps that get their own button under the tray arrow (the tray hides everything else)
+  TRAY_BUTTONS=""
+  if command -v gdbus >/dev/null && [ -n "$(python3 "$KIT/plasma/trayitem/com.nexuskiwi.sepiatrayitem/contents/code/sepia-trayitem.py" status OpenRGB 2>/dev/null | grep 1)" ]; then
+    TRAY_BUTTONS="OpenRGB"
+  fi
+  dock_script() { sed -e "s|@TRAY_ITEMS@|$1|" -e "s|@LAUNCHERS@|$LAUNCHERS|g" -e "s|@TRAY_BUTTONS@|$TRAY_BUTTONS|g" "$KIT/plasma/apply-dock.js"; }
+  TRAYBTN="$HOME/.local/share/plasma/plasmoids/com.nexuskiwi.sepiatrayitem"
+  diff -rq "$KIT/plasma/trayitem/com.nexuskiwi.sepiatrayitem" "$TRAYBTN" >/dev/null 2>&1 || drawer_changed_btn=1
+  rm -rf "$TRAYBTN"; mkdir -p "$(dirname "$TRAYBTN")"
+  cp -r "$KIT/plasma/trayitem/com.nexuskiwi.sepiatrayitem" "$TRAYBTN"
   DOCK_MARK="$HOME/.local/share/sepia-summit/dock-version"
   restart_shell() {
     # Several restarts in a row would otherwise hit systemd's start limit
@@ -239,19 +248,20 @@ if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
   APPLETS="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
   drawer_changed=0
   diff -rq "$DRAWER_SRC" "$DRAWER" >/dev/null 2>&1 || drawer_changed=1
+  [ "${drawer_changed_btn:-0}" = 1 ] && drawer_changed=1
   rm -rf "$DRAWER"; mkdir -p "$(dirname "$DRAWER")"
   cp -r "$DRAWER_SRC" "$DRAWER"
 
   if grep -q '^plugin=com.nexuskiwi.sepiadrawer$' "$APPLETS" 2>/dev/null; then
-    # Docks set up before the square tray arrow existed
-    if ! grep -q '^scaleIconsToFit=true$' "$APPLETS"; then
-      "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript 'panels().forEach(function (p) { p.widgets().forEach(function (w) { if (w.type === "org.kde.plasma.systemtray") { w.currentConfigGroup = ["General"]; w.writeConfig("scaleIconsToFit", true); } }); });' >/dev/null \
+    # Docks set up while the tray arrow was scaled up to fill the dock: back to its usual size
+    if grep -q '^scaleIconsToFit=true$' "$APPLETS"; then
+      "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript 'panels().forEach(function (p) { p.widgets().forEach(function (w) { if (w.type === "org.kde.plasma.systemtray") { w.currentConfigGroup = ["General"]; w.writeConfig("scaleIconsToFit", false); } }); });' >/dev/null \
         || c "Couldn't update the tray arrow."
       sleep 12   # let Plasma save it before the restart
       drawer_changed=1
     fi
-    # Docks set up before the end spacers, or before the dock moved to the left edge (version 2)
-    if ! grep -q '^plugin=org.kde.plasma.panelspacer$' "$APPLETS" || [ "$(cat "$DOCK_MARK" 2>/dev/null)" != 2 ]; then
+    # Docks from before the current layout (version 3: left edge, arrow above volume/network/buttons)
+    if [ "$(cat "$DOCK_MARK" 2>/dev/null)" != 3 ]; then
       for _ in 1 2; do   # twice, as below: the new spacers' order only sticks on the second pass
         "$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(dock_script "")" >/dev/null \
           || c "Couldn't update the dock."
@@ -261,7 +271,7 @@ if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
       drawer_changed=0
     fi
     [ "$drawer_changed" = 1 ] && restart_shell
-    mkdir -p "$(dirname "$DOCK_MARK")"; echo 2 > "$DOCK_MARK"
+    mkdir -p "$(dirname "$DOCK_MARK")"; echo 3 > "$DOCK_MARK"
   else
     BACKUP="$HOME/.local/share/sepia-summit/backups/pre-dock-$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$BACKUP"
@@ -283,7 +293,7 @@ if [ "${DOCK:-1}" = "1" ] && [ -n "$QDBUS" ]; then
       sleep 12   # let Plasma save the layout, the widget order applies on reload
       restart_shell
     done
-    mkdir -p "$(dirname "$DOCK_MARK")"; echo 2 > "$DOCK_MARK"
+    mkdir -p "$(dirname "$DOCK_MARK")"; echo 3 > "$DOCK_MARK"
   fi
 fi
 
@@ -310,7 +320,6 @@ fi
 # THEME=0 skips this.
 if [ "${THEME:-1}" = "1" ] && command -v plasma-apply-desktoptheme >/dev/null; then
   STYLE="$HOME/.local/share/plasma/desktoptheme/sepia-summit"
-  BREEZE="/usr/share/plasma/desktoptheme/default"
   if [ -f "$HOME/.config/plasmarc" ] && [ ! -d "$STYLE" ]; then
     BACKUP="$HOME/.local/share/sepia-summit/backups/pre-theme-$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$BACKUP"
@@ -319,14 +328,10 @@ if [ "${THEME:-1}" = "1" ] && command -v plasma-apply-desktoptheme >/dev/null; t
   fi
   rm -rf "$STYLE"; mkdir -p "$STYLE"
   cp -r "$KIT/plasma/theme/sepia-summit/." "$STYLE/"
-  # translucent/ is what Plasma uses when KWin can blur behind it: glass. The others are the fallback.
-  for spec in widgets/panel-background.svgz:0.62 translucent/widgets/panel-background.svgz:0.36 \
-              dialogs/background.svgz:0.84 translucent/dialogs/background.svgz:0.66; do
-    svg="${spec%%:*}"; alpha="${spec##*:}"
-    [ -f "$BREEZE/$svg" ] || continue
-    mkdir -p "$STYLE/$(dirname "$svg")"
-    zcat "$BREEZE/$svg" | sed "s/opacity:0\.85/opacity:$alpha/g" | gzip -9n > "$STYLE/$svg"
-  done
+  # The panel, popup and task frames and the volume/network icons are our own (tools/make_plasma_style.py):
+  # translucent/ is used when KWin can blur behind it (glass), the others are the fallback.
+  # Everything else falls back to Breeze.
+  rm -rf "$HOME/.cache/plasma_theme_sepia-summit"* 2>/dev/null || true
   plasma-apply-desktoptheme sepia-summit >/dev/null 2>&1 || c "Couldn't apply the Plasma style automatically."
 
   # Frosted glass: a bit more blur than KWin's default, with fine grain. GLASS=0 leaves KWin alone.

@@ -20,11 +20,16 @@ PlasmoidItem {
     readonly property string listCommand: "python3 " + quoted(helper) + " list"
     readonly property var tabs: ["Games", "Apps", "System"]
     readonly property int edgeGap: 12
-    readonly property int dockSpace: 76
+    readonly property int topGap: 36      // the conky panel's margin
+    // Room left for the dock: beside it when it runs down the screen edge, above it at the bottom
+    readonly property bool vertical: Plasmoid.formFactor === PlasmaCore.Types.Vertical
+    readonly property int dockSpace: vertical ? 0 : 76
+    readonly property int dockSide: vertical ? 70 : 0
 
     property var apps: []
     property string currentTab: "Games"
     property string query: ""
+    property double activatedAt: 0
     property double closedAt: 0
     readonly property var shown: {
         const q = query.trim().toLowerCase()
@@ -67,7 +72,11 @@ PlasmoidItem {
     // Plasma's launcher shortcut (the Meta key)
     Connections {
         target: Plasmoid
-        function onActivated() { root.toggle() }
+        // Plasma emits activated twice per shortcut press; the second would close it again
+        function onActivated() {
+            if (Date.now() - root.activatedAt > 400) root.toggle()
+            root.activatedAt = Date.now()
+        }
     }
 
     function quoted(s) { return "'" + s.replace(/'/g, "'\\''") + "'" }
@@ -127,12 +136,26 @@ PlasmoidItem {
 
     Component.onCompleted: refresh()
 
+    // the widget's global shortcut (and kglobalaccel "activate widget N") opens the drawer too
+    Connections {
+        target: Plasmoid
+        // Plasma emits activated twice per shortcut press; the second would close it again
+        function onActivated() {
+            if (Date.now() - root.activatedAt > 400) root.toggle()
+            root.activatedAt = Date.now()
+        }
+    }
+
     fullRepresentation: MouseArea {
         hoverEnabled: true
-        Layout.minimumWidth: height
-        Layout.preferredWidth: height
-        Layout.maximumWidth: height
-        Layout.fillHeight: true
+        Layout.minimumWidth: root.vertical ? -1 : height
+        Layout.preferredWidth: root.vertical ? -1 : height
+        Layout.maximumWidth: root.vertical ? -1 : height
+        Layout.fillHeight: !root.vertical
+        Layout.minimumHeight: root.vertical ? width : -1
+        Layout.preferredHeight: root.vertical ? width : -1
+        Layout.maximumHeight: root.vertical ? width : -1
+        Layout.fillWidth: root.vertical
         onClicked: root.toggle()
 
         Rectangle {
@@ -145,9 +168,10 @@ PlasmoidItem {
         }
         Kirigami.Icon {
             anchors.centerIn: parent
-            width: Math.round(parent.height * 0.6)
+            width: Math.round((root.vertical ? parent.width : parent.height) * 0.7)
             height: width
-            source: "view-app-grid-symbolic"
+            source: "sepia-app-grid"            // from the Sepia Summit icon theme
+            fallback: "view-app-grid-symbolic"
             color: root.cream
             isMask: true
         }
@@ -157,26 +181,25 @@ PlasmoidItem {
         id: drawer
         visible: false
         hideOnWindowDeactivate: true
-        backgroundHints: PlasmaCore.Dialog.NoBackground
+        // The style's dialog frame: frosted glass like the dock and the conky panel
+        backgroundHints: PlasmaCore.Dialog.StandardBackground
         flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
         location: PlasmaCore.Types.Floating
-        x: Plasmoid.containment.screenGeometry.x + root.edgeGap
-        y: Plasmoid.containment.screenGeometry.y + root.edgeGap
+        x: Plasmoid.containment.screenGeometry.x + root.edgeGap + root.dockSide
+        y: Plasmoid.containment.screenGeometry.y + root.topGap
         onVisibleChanged: if (!visible) root.closedAt = Date.now()
 
         mainItem: Item {
             width: 560
-            height: Plasmoid.containment.screenGeometry.height - root.edgeGap - root.dockSpace
+            // the frame adds its own 12 px padding on each side
+            height: Plasmoid.containment.screenGeometry.height - 2 * root.topGap - root.dockSpace - 24
             Keys.onEscapePressed: drawer.visible = false
 
             Rectangle {
                 id: sheet
                 width: parent.width
                 height: parent.height
-                radius: 16
-                color: Qt.rgba(0x1c / 255, 0x12 / 255, 0x0c / 255, 0.88)
-                border.color: Qt.rgba(0xc4 / 255, 0xa0 / 255, 0x74 / 255, 0.28)
-                border.width: 1
+                color: "transparent"
 
                 NumberAnimation on x {
                     id: slideIn
@@ -189,7 +212,7 @@ PlasmoidItem {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 22
+                    anchors.margins: 10
                     spacing: 14
 
                     RowLayout {

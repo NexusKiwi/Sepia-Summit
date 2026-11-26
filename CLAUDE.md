@@ -36,14 +36,20 @@ owner's (NexusKiwi) PC and shared with friends. It has these parts:
    (checked against the 2024-04-08 and 2025-03-14 eclipses) and caches `eclipses` (per-minute samples
    of the moon's offset from the sun in sun radii, or the shadow's offset from the moon in moon radii)
    and `meteors` (current shower: rate seen from here, radiant alt/az). The QML interpolates samples.
-7. **Glass** — the dock and popups are frosted by KWin (the style's `translucent/` SVGs at 0.36/0.66,
+7. **Glass** — the dock and popups are frosted by KWin (the style's `translucent/` SVGs from
+   `tools/make_plasma_style.py`: panel 0.42, dialogs 0.41 to match conky's 105/255, 1.5 px cream edge,
    KWin blur strength 11, noise 3). conky's desktop-layer window can't be blurred by KWin, so
    `panel.lua` writes its size/monitor to `~/.cache/sepia-summit/glass.qml` and the wallpaper draws a
    blurred copy of its `scene` item there. Desktop applets can do real glass themselves:
    `Plasmoid.containment.wallpaperGraphicsObject` + ShaderEffectSource + MultiEffect blur.
 8. **Dock + icons** — vertical floating dock on the left edge (apply-dock.js, `@LAUNCHERS@` from
-   install.sh: default browser, Dolphin, Konsole, Steam, Discord, Claude). `plasma/icons/sepia-summit`
-   is an icon theme with only those apps (from `tools/make_icons.py`), inheriting the previous theme.
+   install.sh: default browser, Dolphin, Konsole, Steam, Discord, Claude), then the tray (arrow only,
+   `scaleIconsToFit=false` so it stays small), the volume and network applets, and one
+   `com.nexuskiwi.sepiatrayitem` per running tray app in `@TRAY_BUTTONS@` (OpenRGB): it finds the SNI
+   item by Id over D-Bus and calls Activate / ContextMenu. `plasma/icons/sepia-summit` is an icon theme
+   with only those apps, the drawer's `sepia-app-grid`, and audio/network status icons (plain and
+   `-symbolic`, from make_plasma_style.py; the style's `icons/*.svg` hold the same drawings), inheriting
+   the previous theme. Dock layout version lives in `~/.local/share/sepia-summit/dock-version` (3).
 
 `install.sh` sets up everything and is safe to re-run. `README.md` is the user-facing doc.
 
@@ -94,6 +100,12 @@ from a clean clone was tested on 2026-11-24, starting from the original desktop.
 - The weather timer runs `sepia-weather refresh`, which leaves a preview alone for 15 minutes (a
   plain `fetch` replaced previews mid-eclipse).
 - `pkill -f` with a pattern that also appears in your own shell command kills that shell (exit 144).
+- Plasma style frames: lay the 9 pieces out edge to edge (Breeze-style, corners R, edges 32 long), use
+  `hint-stretch-borders`, and draw the edge line as a *filled* band, not a stroke. Gaps between pieces,
+  tiled translucent edges, or a stroke's half-width overhang all showed up as light seams in the dock.
+- `Plasmoid.activated` fires twice per shortcut press (the drawer debounces it). To open the drawer for a
+  screenshot, give it a temporary global shortcut, then `invokeShortcut "activate widget <id>"` on
+  `/component/plasmashell` (kglobalaccel only knows widgets that have a shortcut).
 
 ## Repo layout
 
@@ -112,7 +124,7 @@ plasma/set-wallpaper.js       plasmashell evaluateScript: picks images per scree
 plasma/apply-dock.js          plasmashell evaluateScript: vertical glass dock on the left monitor, hides desktop icons
 plasma/icons/sepia-summit/    icon theme (index.theme Inherits=@INHERITS@ filled by install.sh)
 plasma/drawer/…/              app drawer plasmoid (contents/code/sepia-drawer.py lists and launches apps)
-plasma/theme/sepia-summit/    Plasma style (install.sh tints Breeze's panel and dialog artwork)
+plasma/theme/sepia-summit/    Plasma style (generated SVGs; don't hand-edit, rerun make_plasma_style.py)
 plasma/colors/                app colour scheme
 konsole/                      Konsole profile and colour scheme
 plasma/sepia-weather.py       weather fetcher + conky lines + `preview` (installed as ~/.local/bin/sepia-weather)
@@ -121,6 +133,9 @@ tools/make_wallpaper.py       generator (numpy + Pillow). --seed, --split, --onl
                               masks + scene.js; the images themselves stay bit-identical)
 tools/make_weather_assets.py  cloud/stratus/rain/snow/sun/sunglow/tree/leaf sprites → plasma/wallpaper/…/contents/images
 tools/make_icons.py           cream line app icons → plasma/icons/sepia-summit (stdlib)
+tools/make_plasma_style.py    glass frames, tasks highlights, audio/network icons → plasma/theme/sepia-summit
+                              and plasma/icons/sepia-summit/scalable/status (stdlib)
+plasma/trayitem/…/            dock button for a StatusNotifierItem tray app (code/sepia-trayitem.py via gdbus)
 wallpapers/                   generated PNGs (+ _LEFT/_RIGHT halves for dual, + _front cut-outs,
                               + _sky masks: white with alpha = open sky, because MultiEffect masks by alpha,
                               + _snow masks: alpha = snow level)

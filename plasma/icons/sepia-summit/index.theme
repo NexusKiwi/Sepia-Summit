@@ -2,7 +2,7 @@
 Name=Sepia Summit
 Comment=Cream line icons for a few apps; everything else comes from the theme it inherits
 Inherits=@INHERITS@,breeze,hicolor
-Directories=scalable/apps
+Directories=scalable/apps,scalable/status
 
 [scalable/apps]
 Size=64
@@ -10,3 +10,10 @@ MinSize=16
 MaxSize=512
 Type=Scalable
 Context=Applications
+
+[scalable/status]
+Size=22
+MinSize=16
+MaxSize=512
+Type=Scalable
+Context=Status
