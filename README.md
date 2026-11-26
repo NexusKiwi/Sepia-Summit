@@ -2,12 +2,11 @@
 
 **A Rainmeter-style sepia desktop for Linux: KDE Plasma 6, Bazzite and Fedora Atomic.**
 
-![Sepia Summit on dual monitors, with the visualiser rising behind the ridges](docs/preview-live.jpg)
+[![Sepia Summit on two 1440p monitors: the glass dock on the left, the conky panel on the right, with the visualiser rising behind the ridges](docs/screenshots/desktop.jpg)](docs/screenshots/desktop.jpg)
 
-<sub>Mock-up: the visualiser rises from the valley behind the nearer ridges.</sub>
+<sub>A real capture of both monitors at full resolution (5120×1440); click it to see it full size. The light widget beside the panel is the owner's own and isn't part of the kit.</sub>
 
-<p align="center"><img src="docs/panel-closeup.png" width="360" alt="Conky stats panel close-up (mock-up)"></p>
-<p align="center"><sub>Panel preview is a mock-up; real numbers come from your hardware.</sub></p>
+<p align="center"><img src="docs/screenshots/panel.png" width="320" alt="The conky stats panel on frosted glass"></p>
 
 What's included:
 
@@ -49,6 +48,19 @@ tools/make_weather_assets.py  draws the clouds, rain, snow, tree and leaf sprite
 ```
 
 ---
+
+## Gallery
+
+Real captures of the left monitor at full 1440p, made with `sepia-weather preview` (see [Weather and day/night](#4-weather-and-daynight)). Click any picture for the full-size version.
+
+<table>
+<tr><td width="50%"><a href="docs/screenshots/cloudy.jpg"><img src="docs/screenshots/cloudy.jpg" alt="Cloud drifting behind the peaks"></a><br><sub>Cloud drifting behind the peaks</sub></td><td width="50%"><a href="docs/screenshots/rain.jpg"><img src="docs/screenshots/rain.jpg" alt="A rain shower, kept faint"></a><br><sub>A rain shower, kept faint</sub></td></tr>
+<tr><td width="50%"><a href="docs/screenshots/snow.jpg"><img src="docs/screenshots/snow.jpg" alt="Winter: snow falling, snowline low on the peaks"></a><br><sub>Winter: snow falling, snowline low on the peaks</sub></td><td width="50%"><a href="docs/screenshots/fog.jpg"><img src="docs/screenshots/fog.jpg" alt="Valley fog"></a><br><sub>Valley fog</sub></td></tr>
+<tr><td width="50%"><a href="docs/screenshots/autumn.jpg"><img src="docs/screenshots/autumn.jpg" alt="Autumn: thinner, lighter trees"></a><br><sub>Autumn: thinner, lighter trees</sub></td><td width="50%"><a href="docs/screenshots/dusk.jpg"><img src="docs/screenshots/dusk.jpg" alt="Sunset glow"></a><br><sub>Sunset glow</sub></td></tr>
+<tr><td width="50%"><a href="docs/screenshots/night.jpg"><img src="docs/screenshots/night.jpg" alt="Night, with the moon in its real phase"></a><br><sub>Night, with the moon in its real phase</sub></td><td width="50%"><a href="docs/screenshots/meteor.jpg"><img src="docs/screenshots/meteor.jpg" alt="A meteor during a shower"></a><br><sub>A meteor during a shower</sub></td></tr>
+<tr><td width="50%"><a href="docs/screenshots/eclipse-partial.jpg"><img src="docs/screenshots/eclipse-partial.jpg" alt="Solar eclipse: the moon bites into the sun"></a><br><sub>Solar eclipse: the moon bites into the sun</sub></td><td width="50%"><a href="docs/screenshots/eclipse-total.jpg"><img src="docs/screenshots/eclipse-total.jpg" alt="Totality: dark sky, corona, stars"></a><br><sub>Totality: dark sky, corona, stars</sub></td></tr>
+<tr><td width="50%"><a href="docs/screenshots/drawer.jpg"><img src="docs/screenshots/drawer.jpg" alt="The glass dock with the app drawer open"></a><br><sub>The glass dock with the app drawer open</sub></td><td></td></tr>
+</table>
 
 ## 1. Install
 
@@ -96,6 +108,10 @@ The dock floats down the left edge of the left monitor and holds the drawer butt
 
 ## 3. The visualiser behind the mountains
 
+![The visualiser rising from the valley behind the nearer ridges (mock-up)](docs/preview-live.jpg)
+
+<sub>Mock-up of the bars at full height; the hero picture at the top shows them for real.</sub>
+
 This works once the installer has run. Play anything — Spotify, YouTube, a game — and bars rise from behind the middle ridge. With two monitors they appear on the right one only.
 
 How it works: `sepia-cava.service` runs CAVA and serves the audio levels on `127.0.0.1` only. The wallpaper plugin reads them about 30 times a second and draws the bars between the wallpaper and the ridge cut-out.
@@ -128,7 +144,7 @@ sepia-weather preview rain night    # try a look: clear partly cloudy overcast f
                                     #   rain showers snow storm, at day / dusk / night
 sepia-weather preview clear night summer temp=19      # fireflies
 sepia-weather preview overcast day winter wind=45 snow=6   # deep snow blowing off the peaks
-sepia-weather preview clear eclipse=solar       # a total eclipse, squeezed into 4 minutes
+sepia-weather preview eclipse=solar             # a total eclipse, squeezed into 4 minutes
 sepia-weather preview clear eclipse=lunar meteors=60   # blood moon during a meteor shower
 sepia-weather events                # eclipses visible from your town in the next 3 years
 sepia-weather fetch                 # back to the real weather
