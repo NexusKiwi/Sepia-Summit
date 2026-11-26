@@ -11,7 +11,11 @@ import sys
 
 
 def gdbus(*args):
-    return subprocess.run(["gdbus", "call", "--session", *args], capture_output=True, text=True, timeout=3).stdout
+    """One D-Bus call; "" if it fails, so a hung tray app or a missing gdbus reads as "not there"."""
+    try:
+        return subprocess.run(["gdbus", "call", "--session", *args], capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
 
 
 def find(item_id):
