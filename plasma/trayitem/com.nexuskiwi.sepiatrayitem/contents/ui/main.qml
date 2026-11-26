@@ -14,8 +14,46 @@ PlasmoidItem {
     readonly property bool vertical: Plasmoid.formFactor === PlasmaCore.Types.Vertical
     readonly property string helper: Qt.resolvedUrl("../code/sepia-trayitem.py").toString().replace("file://", "")
     readonly property string itemId: Plasmoid.configuration.itemId
-    readonly property string statusCommand: "python3 " + quoted(helper) + " status " + quoted(itemId)
+    readonly property string statusCommand: "python3 " + quoted(helper) + " source " + quoted(itemId)
     property bool running: true
+    property string source: ""     // the item's tray source, e.g. ":1.944/StatusNotifierItem"
+    property var pendingClick: null
+    readonly property string triggerCommand: "python3 " + quoted(helper) + " trigger " + quoted(itemId) + " "
+                                             + quoted(Plasmoid.configuration.leftClick)
+
+    // Clicks go through the system tray widget in the same panel when there is one: it hands the app
+    // a Wayland activation token (without one the app may not raise its window) and draws the app's
+    // D-Bus menu (Qt apps such as OpenRGB ignore a bare ContextMenu call). Otherwise call D-Bus directly.
+    function trayApplet() {
+        const applets = Plasmoid.containment ? Plasmoid.containment.applets : []
+        for (let i = 0; i < applets.length; i++) {
+            if (applets[i].pluginName === "org.kde.plasma.systemtray") return applets[i]
+        }
+        return null
+    }
+    function click(item, menu, x, y) {
+        // Left click: the configured menu entry if the app has one, else a normal tray click
+        if (!menu && Plasmoid.configuration.leftClick && !pendingClick) {
+            pendingClick = { item: item, x: x, y: y }
+            exec.connectSource(triggerCommand)
+            return
+        }
+        pendingClick = null
+        const tray = source ? trayApplet() : null
+        if (tray && typeof tray.openContextMenu === "function") {
+            const pos = typeof tray.popupPosition === "function" ? tray.popupPosition(item, x, y)
+                                                                 : item.mapToGlobal(x, y)
+            if (menu) tray.openContextMenu(source, pos, item)
+            else tray.activate(source, pos, item)
+            return
+        }
+        if (menu) {
+            const p = item.mapToGlobal(x, y)
+            run("menu " + quoted(itemId) + " " + Math.round(p.x) + " " + Math.round(p.y))
+        } else {
+            run("activate " + quoted(itemId))
+        }
+    }
 
     preferredRepresentation: fullRepresentation
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
@@ -29,7 +67,15 @@ PlasmoidItem {
         id: exec
         engine: "executable"
         onNewData: (source, data) => {
-            if (source === root.statusCommand) root.running = data.stdout.trim() === "1"
+            if (source === root.statusCommand) {
+                root.source = data.stdout.trim()
+                root.running = root.source !== ""
+            }
+            if (source === root.triggerCommand && root.pendingClick) {
+                const c = root.pendingClick
+                if (data.stdout.trim() === "1") root.pendingClick = null
+                else root.click(c.item, false, c.x, c.y)     // no such entry: a normal tray click
+            }
             disconnectSource(source)
         }
     }
@@ -46,14 +92,7 @@ PlasmoidItem {
         Layout.preferredHeight: root.vertical ? width : -1
         Layout.fillWidth: root.vertical
         Layout.fillHeight: !root.vertical
-        onClicked: mouse => {
-            if (mouse.button === Qt.RightButton) {
-                const p = button.mapToGlobal(mouse.x, mouse.y)
-                root.run("menu " + root.quoted(root.itemId) + " " + Math.round(p.x) + " " + Math.round(p.y))
-            } else {
-                root.run("activate " + root.quoted(root.itemId))
-            }
-        }
+        onClicked: mouse => root.click(button, mouse.button === Qt.RightButton, mouse.x, mouse.y)
 
         Rectangle {
             anchors.fill: parent

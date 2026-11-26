@@ -5,5 +5,8 @@
     <entry name="itemId" type="String"><default>OpenRGB</default></entry>
     <entry name="icon" type="String"><default>OpenRGB</default></entry>
     <entry name="label" type="String"><default>OpenRGB</default></entry>
+    <!-- left click picks this entry from the app's tray menu (OpenRGB ignores a plain tray click);
+         empty, or if the menu has no such entry: a normal tray click -->
+    <entry name="leftClick" type="String"><default>Show/Hide</default></entry>
   </group>
 </kcfg>

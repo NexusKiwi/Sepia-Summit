@@ -46,7 +46,11 @@ owner's (NexusKiwi) PC and shared with friends. It has these parts:
    install.sh: default browser, Dolphin, Konsole, Steam, Discord, Claude), then the tray (arrow only,
    `scaleIconsToFit=false` so it stays small), the volume and network applets, and one
    `com.nexuskiwi.sepiatrayitem` per running tray app in `@TRAY_BUTTONS@` (OpenRGB): it finds the SNI
-   item by Id over D-Bus and calls Activate / ContextMenu. `plasma/icons/sepia-summit` is an icon theme
+   item by Id over D-Bus. Clicks go through the dock's own systemtray applet (found in
+   `Plasmoid.containment.applets`; its `activate`/`openContextMenu(source, pos, item)` pass a Wayland
+   activation token and draw the app's dbusmenu — a bare ContextMenu call does nothing for Qt apps).
+   Left click first picks the `leftClick` menu entry by label (default "Show/Hide": OpenRGB ignores
+   Activate), falling back to a plain tray click. `plasma/icons/sepia-summit` is an icon theme
    with only those apps, the drawer's `sepia-app-grid`, and audio/network status icons (plain and
    `-symbolic`, from make_plasma_style.py; the style's `icons/*.svg` hold the same drawings), inheriting
    the previous theme. Dock layout version lives in `~/.local/share/sepia-summit/dock-version` (3).
