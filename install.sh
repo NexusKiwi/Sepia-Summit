@@ -26,9 +26,20 @@ if [ ${#missing[@]} -gt 0 ]; then
       exit 0
     fi
   else
-    c "Install them with your package manager, then re-run."
+    pm=""
+    if   command -v dnf    >/dev/null; then pm="sudo dnf install -y"
+    elif command -v pacman >/dev/null; then pm="sudo pacman -S --needed --noconfirm"
+    elif command -v zypper >/dev/null; then pm="sudo zypper install -y"
+    elif command -v apt    >/dev/null; then pm="sudo apt install -y"
+    fi
+    if [ -n "$pm" ]; then
+      read -rp "Install them with \`$pm ${missing[*]}\` now? [y/N] " a
+      [[ "$a" =~ ^[Yy]$ ]] && $pm "${missing[@]}" || true
+    else
+      c "Install them with your package manager, then re-run."
+    fi
   fi
-  c "Continuing without them (configs will still be copied)."
+  command -v cava >/dev/null || c "Continuing without them (configs will still be copied)."
 fi
 
 # 2. detect hardware bits ---------------------------------------------------

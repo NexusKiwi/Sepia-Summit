@@ -146,7 +146,6 @@ wallpapers/                   generated PNGs (+ _LEFT/_RIGHT halves for dual, + 
                               + _sky masks: white with alpha = open sky, because MultiEffect masks by alpha,
                               + _snow masks: alpha = snow level)
 docs/screenshots/             real README captures (hero, panel, gallery); IP + Hue light name blurred
-docs/                         older images: preview-live.jpg is a MOCK-UP (labelled, in README section 3)
 ```
 
 ## Design language (keep consistent)
@@ -191,7 +190,7 @@ docs/                         older images: preview-live.jpg is a MOCK-UP (label
 - Don't add heavy dependencies. Python stdlib only for anything installed on the host;
   numpy/Pillow are fine for the generator, which can run in a distrobox.
 - Regenerating wallpapers changes about 90 MB of PNGs. Only commit them when the art actually changes.
-- Mock-up images in `docs/` must stay labelled as mock-ups until real screenshots replace them.
+- README images are real captures only (no mock-ups left). If a mock-up is ever needed, label it as one.
 - README screenshots are real captures in `docs/screenshots/` (full native resolution, JPG q88). Shoot them with `sepia-weather preview …` and KWin Show Desktop (`qdbus-qt6 org.kde.KWin /KWin org.kde.KWin.showDesktop true`), blur the conky LAN IP and the Hue light name, never show the location, then `sepia-weather fetch`.
   Real screenshots from the owner's desktop are welcome.
 - Remote: `github.com/NexusKiwi/Sepia-Summit` (branch `main`). The repo is public, so commit as
